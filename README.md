@@ -1,17 +1,38 @@
 # 🚀 UMKM Scraper & RAG Direct Message Bot
 
-Bot pemasaran otonom berbasis kecerdasan buatan (AI) yang dirancang untuk mencari data tempat usaha (UMKM) lokal secara gratis, merancang pesan penawaran kustom yang personal menggunakan teknologi RAG (Retrieval-Augmented Generation), dan mengirimkan pesan Instagram DM otomatis menggunakan bypass Session ID browser.
+Sistem pemasaran otonom berbasis kecerdasan buatan (AI) yang dirancang untuk mencari data tempat usaha (UMKM) lokal secara gratis, merancang pesan penawaran kustom menggunakan teknologi RAG (Retrieval-Augmented Generation), dan mengirimkan pesan Instagram DM otomatis.
+
+Kini dilengkapi dengan **Web Dashboard GUI** untuk kontrol visual penuh tanpa perlu menyentuh terminal!
 
 ---
 
-## 🌟 Fitur Utama
-1. **Scraping Peta Gratis & Tanpa Batas (`osm_scraper.py`)**: Mengekstrak data bisnis lokal (Restoran, Cafe, Barbershop, Spa, dll) di kota tertentu langsung dari OpenStreetMap (OSM) Overpass API. 100% gratis tanpa perlu kredensial login atau limitasi web-scraping biasa.
-2. **AI RAG Evaluator & Copywriter (`rag_dm_generator.py`)**: Menyaring leads potensial yang belum memiliki website, memasukkannya ke database vektor lokal (**ChromaDB**), dan merumuskan draf pesan cold-outreach yang personal, natural, dan ramah khas Indonesia. Mendukung multi-model:
+## 💻 Web Dashboard Management (GUI)
+Anda sekarang dapat mengontrol seluruh alur kerja program secara visual melalui halaman web interaktif.
+
+### Cara Menjalankan Dashboard:
+1. Jalankan server backend Flask di terminal Anda:
+   ```powershell
+   python app.py
+   ```
+2. Buka browser (Brave/Chrome/Edge) Anda dan akses alamat berikut:
+   🔗 **[http://localhost:5000](http://localhost:5000)**
+
+### Fitur Dashboard Web:
+- **Statistik Kampanye Dinamis**: Melihat jumlah total leads, leads bernilai tinggi, status DM sukses, gagal, dan terlewati secara real-time.
+- **Workflow Control & Virtual Terminal**: Cukup klik tombol **Jalankan** untuk memicu Scraper, Generator AI, Resolver, atau Pengirim DM. Dilengkapi konsol terminal log mengalir secara real-time.
+- **Leads & Copywriting Editor**: Edit nama pengguna target (dummy `osm_xxxx` ke akun asli) dan pesan promosi kustom AI langsung di tabel web, lalu simpan dengan tombol klik disket hijau.
+- **Settings Form Terintegrasi**: Mengubah konfigurasi `.env` (seperti Kunci API, model AI, dan Session ID Instagram) langsung lewat formulir halaman web.
+
+---
+
+## 🌟 Fitur Utama Mesin Bot
+1. **Scraping Peta Gratis & Tanpa Batas (`osm_scraper.py`)**: Mengekstrak data bisnis lokal di kota tertentu langsung dari OpenStreetMap (OSM) Overpass API. 100% gratis tanpa login.
+2. **AI RAG Evaluator & Copywriter (`rag_dm_generator.py`)**: Menyaring leads potensial tanpa website, menyimpan ke database vektor lokal (**ChromaDB**), dan merumuskan draf pesan kustom. Mendukung model:
    - **Google Gemini API** (Cloud)
-   - **OpenRouter API** (Llama 3.1, Gemma, Mistral, dll)
-   - **Ollama** (Offline/Lokal secara gratis tanpa batasan)
-3. **Pencarian Akun Instagram Otomatis (`resolve_ig_usernames.py`)**: Menghubungkan nama bisnis hasil ekstraksi peta ke akun Instagram asli mereka menggunakan pencarian cerdas API Instagram.
-4. **Pengirim DM Massal Aman (`dm_sender.py`)**: Mengirimkan DM kustom hasil AI langsung ke akun target. Menggunakan teknik **Bypass Session ID Cookie** untuk melompati pemeriksaan keamanan Instagram (Challenge/2FA) secara 100% aman.
+   - **OpenRouter API** (Llama 3.1, Gemma, Mistral)
+   - **Ollama** (Offline/Lokal secara gratis lewat Google Colab)
+3. **Pencarian Akun Instagram Otomatis (`resolve_ig_usernames.py`)**: Menghubungkan nama bisnis hasil ekstraksi peta ke akun Instagram asli mereka.
+4. **Pengirim DM Massal Aman (`dm_sender.py`)**: Mengirimkan DM kustom menggunakan teknik **Bypass Session ID Cookie** untuk melompati pemeriksaan keamanan Instagram.
 
 ---
 
@@ -29,66 +50,36 @@ pip install -r requirements.txt
 ```
 
 ### 3. Salin & Isi Konfigurasi `.env`
-Salin file `.env.template` menjadi `.env` dan isi variabel di dalamnya:
-```ini
-# Credentials akun Instagram bot Anda
-IG_USERNAME=username_akun_bot
-IG_PASSWORD=password_akun_bot
-IG_SESSIONID=masukkan_session_id_browser_di_sini   # (Wajib untuk bypass verifikasi)
-
-# Pilihan Tipe AI: cloud (Gemini), local (Ollama), atau openrouter (OpenRouter)
-AI_TYPE=openrouter
-
-# Konfigurasi Google Gemini (Jika AI_TYPE=cloud)
-GEMINI_API_KEY=api_key_gemini_anda
-GEMINI_MODEL=gemini-2.5-flash
-
-# Konfigurasi OpenRouter (Jika AI_TYPE=openrouter)
-OPENROUTER_API_KEY=api_key_openrouter_anda
-OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct
-
-# Konfigurasi LLM Lokal (Jika AI_TYPE=local & memakai Ollama)
-LOCAL_LLM_URL=http://localhost:11434/v1
-LOCAL_LLM_MODEL=gemma4:e4b
-```
+Salin file `.env.template` menjadi `.env` dan isi variabel di dalamnya. (Anda juga bisa mengisi data ini langsung lewat menu Settings di Web Dashboard).
 
 ---
 
-## 🎯 Panduan Alur Kerja (Cara Menjalankan)
-
-Jalankan script secara berurutan sesuai langkah-langkah di bawah ini:
+## 🎯 Panduan Alur Kerja (Cara Menjalankan via Terminal)
+Jika Anda tidak ingin menggunakan Web GUI, Anda tetap bisa menjalankan skrip manual di terminal secara berurutan:
 
 ### Langkah 1: Scraping Data Peta Wilayah
-Mengekstrak bisnis di wilayah target (contoh: Surabaya) yang tidak memiliki situs web resmi:
 ```powershell
 python osm_scraper.py
 ```
-*Hasil output mentah akan disimpan di folder `output/`.*
+*Output mentah disimpan di `output/`.*
 
 ### Langkah 2: Buat Draf Pesan Promosi Kustom AI (RAG)
-Menilai relevansi leads dan membuat rancangan teks pesan DM kustom unik untuk tiap bisnis:
 ```powershell
-# Jalankan mode tes (preview) untuk 5 akun dengan skor prioritas >= 45
+# Jalankan mode tes (preview saja)
 python rag_dm_generator.py --test --limit 5 --min-score 45
-
-# Jalankan proses sungguhan untuk 30 akun teratas
-python rag_dm_generator.py --limit 30 --min-score 45
 ```
-*Hasil draf teks pesan AI akan disimpan di `output/rag_dm_drafts.csv`.*
+*Output disimpan di `output/rag_dm_drafts.csv`.*
 
 ### Langkah 3: Cari Username Instagram Asli target UMKM
-Menghubungkan nama bisnis target ke akun Instagram nyata mereka di internet:
 ```powershell
 python resolve_ig_usernames.py
 ```
-*Script akan menghasilkan file target matang di `output/rag_dm_drafts_resolved.csv`.*
+*Output disimpan di `output/rag_dm_drafts_resolved.csv`.*
 
 ### Langkah 4: Eksekusi Pengiriman DM Otomatis
-Mengirimkan pesan penawaran kustom AI secara massal dan aman (dengan jeda 30-90 detik per pengiriman):
 ```powershell
 python dm_sender.py --csv output/rag_dm_drafts_resolved.csv --limit 30
 ```
-*Log status pengiriman sukses/gagal dicatat di `output/dm_sent_log.csv`.*
 
 ---
 
@@ -97,6 +88,9 @@ python dm_sender.py --csv output/rag_dm_drafts_resolved.csv --limit 30
 umkm-scraper/
 ├── chroma_db/                  # Database Vektor ChromaDB untuk RAG lokal
 ├── output/                     # Hasil log scraper, draf AI, dan status DM
+├── templates/                  # Folder template HTML
+│   └── index.html              # Antarmuka Dashboard Web Utama
+├── app.py                      # Server backend web Flask
 ├── .env                        # File konfigurasi utama (DIABAIKAN OLEH GIT)
 ├── .gitignore                  # File pengecualian upload Git
 ├── dm_sender.py                # Script pengirim pesan DM Instagram
@@ -110,5 +104,5 @@ umkm-scraper/
 ---
 
 ## 🔒 Catatan Keamanan Akun Instagram
-- **Wajib menggunakan Session ID**: Selalu gunakan nilai cookie `sessionid` dari browser Chrome/Brave/Edge Anda yang sudah login untuk meminimalkan risiko pemblokiran login baru oleh sistem deteksi bot Instagram.
-- **Jeda Waktu Aman**: Script `dm_sender.py` sudah dilengkapi jeda acak (*random delay*) 30 hingga 90 detik antar pesan untuk meniru perilaku wajar manusia. Jangan perkecil nilai delay ini demi keselamatan akun Anda.
+- **Wajib menggunakan Session ID**: Selalu gunakan cookie `sessionid` browser untuk meminimalkan risiko pemblokiran login baru oleh Instagram.
+- **Jeda Waktu Aman**: Script `dm_sender.py` sudah dilengkapi jeda acak 30 hingga 90 detik antar pesan untuk meniru perilaku wajar manusia. Jangan perkecil nilai delay ini.
