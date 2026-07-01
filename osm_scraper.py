@@ -225,8 +225,18 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
         category = tags.get("shop") or tags.get("amenity") or tags.get("craft") or "Local Business"
         category = category.replace("_", " ").title()
 
-        # Dummy username as unique ID
-        username_id = f"osm_{el.get('id')}"
+        # Extract direct Instagram handles from OSM tags if available
+        ig_tag = tags.get("contact:instagram") or tags.get("instagram") or ""
+        ig_username = ""
+        if ig_tag:
+            # Parse handle from URL or clean raw handle string
+            # Handle formats: "https://instagram.com/username", "username", "@username"
+            cleaned_ig = ig_tag.strip().split("?")[0].rstrip("/")
+            ig_username = cleaned_ig.split("/")[-1].replace("@", "").strip()
+
+        # Dummy username as unique ID fallback
+        username_id = ig_username if ig_username else f"osm_{el.get('id')}"
+        instagram_profile_url = f"https://instagram.com/{ig_username}" if ig_username else ""
 
         leads.append({
             "username": username_id,
@@ -244,7 +254,8 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
             "has_website": True,
             "website_type": website_type,
             "last_post_days_ago": 0,
-            "instagram_url": f"https://www.google.com/maps/place/?q={urllib.parse.quote(name + ' ' + city_name)}",
+            "google_maps_url": f"https://www.google.com/maps/place/?q={urllib.parse.quote(name + ' ' + city_name)}",
+            "instagram_url": instagram_profile_url,
             "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "country_code": country_code,
             "city": city_name,

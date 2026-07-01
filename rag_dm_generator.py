@@ -423,7 +423,7 @@ def log_result(username: str, status: str, message: str = ""):
 # ============================================================
 # MAIN RUNNER
 # ============================================================
-def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
+def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
     """Jalankan RAG DM campaign."""
     print("\n" + "=" * 55)
     print("  RAG-POWERED DM GENERATOR UNTUK UMKM")
@@ -450,7 +450,7 @@ def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
 
     sent = load_sent_usernames()
     pending = [l for l in leads if l.get("username") not in sent]
-    to_process = pending[:limit]
+    to_process = pending if limit <= 0 else pending[:limit]
 
     print(f"  Total leads   : {len(leads)}")
     print(f"  Sudah di-DM   : {len(sent)}")
@@ -507,7 +507,8 @@ def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
                 "lead_score": lead.get("lead_score", ""),
                 "phone": lead.get("phone", ""),
                 "email": lead.get("email", ""),
-                "instagram_url": lead.get("instagram_url", f"https://instagram.com/{uname}"),
+                "google_maps_url": lead.get("google_maps_url", ""),
+                "instagram_url": lead.get("instagram_url", ""),
                 "pesan_dm_rag": dm_text,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
@@ -568,8 +569,8 @@ if __name__ == "__main__":
                         help="Build/update vector database dari CSV leads")
     parser.add_argument("--test", action="store_true",
                         help="Preview DM yang dihasilkan tanpa kirim")
-    parser.add_argument("--limit", type=int, default=10,
-                        help="Jumlah DM yang diproses (default: 10)")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="Jumlah DM yang diproses (default: 0 untuk semua)")
     parser.add_argument("--min-score", type=int, default=60,
                         help="Minimum lead score (default: 60)")
     args = parser.parse_args()
