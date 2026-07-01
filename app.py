@@ -57,9 +57,11 @@ def run_script_worker(command: list[str], script_name: str):
     log.info(f"Memulai eksekusi script: {' '.join(command)}")
     
     try:
-        # Jalankan process
+        # Jalankan process di direktori script berada
+        project_dir = os.path.abspath(os.path.dirname(__file__))
         p = subprocess.Popen(
             command,
+            cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
