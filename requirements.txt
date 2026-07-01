@@ -1,0 +1,5 @@
+instagrapi
+pandas
+openpyxl
+tqdm
+python-dotenv

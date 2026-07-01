@@ -1,0 +1,8 @@
+# .gitignore untuk umkm-scraper
+.env
+chroma_db/
+session.json
+output/
+__pycache__/
+*.pyc
+*.log
