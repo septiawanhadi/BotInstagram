@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -232,7 +232,10 @@ def generate_personalized_dm(lead: dict) -> str:
             base_url=local_url,
             api_key="ollama", # dummy key
             model=local_model,
-            temperature=0.8
+            temperature=0.8,
+            default_headers={
+                "bypass-tunnel-reminder": "true"
+            }
         )
     elif ai_type == "openrouter":
         # Gunakan OpenRouter API
