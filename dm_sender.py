@@ -8,6 +8,7 @@ Cara pakai:
   python dm_sender.py --test             # Preview pesan tanpa kirim
 """
 import os
+import sys
 import csv
 import time
 import random
@@ -16,6 +17,14 @@ import glob
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Reconfigure stdout/stderr to UTF-8 to handle emojis safely on Windows
+for stream in (sys.stdout, sys.stderr):
+    if stream and hasattr(stream, 'reconfigure'):
+        try:
+            stream.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
 
 from dotenv import load_dotenv
 
@@ -78,6 +87,25 @@ MAX_DM_PER_SESSION = 20
 TRACKING_FILE = "output/dm_sent_log.csv"
 
 
+def find_latest_leads_file() -> str:
+    """Find the best available leads CSV file, preferring resolved drafts > drafts > raw leads."""
+    # Priority order: resolved drafts > AI drafts > raw leads
+    candidates = [
+        "output/rag_dm_drafts_resolved.csv",
+        "output/rag_dm_drafts.csv",
+    ]
+    for f in candidates:
+        if os.path.exists(f):
+            return f
+    
+    # Fallback: find latest umkm_leads_*.csv
+    csv_files = sorted(glob.glob("output/umkm_leads_*.csv"), reverse=True)
+    if csv_files:
+        return csv_files[0]
+    
+    return "output/umkm_leads.csv"  # default fallback
+
+
 def load_sent_usernames() -> set:
     """Load daftar username yang sudah pernah di-DM."""
     sent = set()
@@ -107,8 +135,10 @@ def log_dm_result(username: str, status: str, message_preview: str = ""):
         })
 
 
-def load_leads(target_file: str = "output/umkm_leads_20260630_215902.csv", min_score: int = 60) -> list[dict]:
+def load_leads(target_file: str = "", min_score: int = 60) -> list[dict]:
     """Load leads dari file CSV dengan filter score."""
+    if not target_file:
+        target_file = find_latest_leads_file()
     if not os.path.exists(target_file):
         raise FileNotFoundError(
             f"Tidak ditemukan file leads di: {target_file}"
@@ -248,12 +278,14 @@ def send_dm(cl, username: str, message: str) -> bool:
 # MAIN
 # ============================================================
 def run_dm_campaign(
-    target_file: str = "output/umkm_leads_20260630_215902.csv",
+    target_file: str = "",
     limit: int = MAX_DM_PER_SESSION,
     min_score: int = 60,
     test_mode: bool = False,
 ):
     """Jalankan kampanye DM otomatis ke leads UMKM."""
+    if not target_file:
+        target_file = find_latest_leads_file()
 
     print("\n" + "=" * 55)
     print("  DM OTOMATIS UNTUK LEADS UMKM")
@@ -370,8 +402,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Kirim DM otomatis ke leads UMKM")
-    parser.add_argument("--csv", type=str, default="output/umkm_leads_20260630_215902.csv",
-                        help="Path ke file CSV leads (default: output/umkm_leads_20260630_215902.csv)")
+    parser.add_argument("--csv", type=str, default="",
+                        help="Path ke file CSV leads (default: auto-detect latest)")
     parser.add_argument("--limit", type=int, default=MAX_DM_PER_SESSION,
                         help=f"Maksimum DM yang dikirim (default: {MAX_DM_PER_SESSION})")
     parser.add_argument("--min-score", type=int, default=60,

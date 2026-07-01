@@ -3,6 +3,7 @@ app.py
 Flask Web Backend untuk UMKM Scraper & RAG DM Campaign Dashboard
 """
 import os
+import sys
 import csv
 import glob
 import subprocess
@@ -59,6 +60,9 @@ def run_script_worker(command: list[str], script_name: str):
     try:
         # Jalankan process di direktori script berada
         project_dir = os.path.abspath(os.path.dirname(__file__))
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
         p = subprocess.Popen(
             command,
             cwd=project_dir,
@@ -67,7 +71,8 @@ def run_script_worker(command: list[str], script_name: str):
             text=True,
             bufsize=1,
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
+            env=env
         )
         current_subprocess = p
         
@@ -339,8 +344,8 @@ def run_script():
     target_file = script_map[script]
     
     # Susun command eksekusi
-    # Gunakan python interpreter lokal
-    command = ["python", target_file] + args
+    # Gunakan python interpreter lokal yang sama dengan server Flask
+    command = [sys.executable, target_file] + args
     
     # Jalankan di thread asinkron
     t = threading.Thread(target=run_script_worker, args=(command, script))

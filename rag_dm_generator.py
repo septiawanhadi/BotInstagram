@@ -13,6 +13,7 @@ Cara pakai:
   python rag_dm_generator.py --limit 10      # Generate & kirim 10 DM
 """
 import os
+import sys
 import csv
 import glob
 import json
@@ -22,6 +23,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Reconfigure stdout/stderr to UTF-8 to handle emojis safely on Windows
+for stream in (sys.stdout, sys.stderr):
+    if stream and hasattr(stream, 'reconfigure'):
+        try:
+            stream.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -43,34 +52,84 @@ TRACKING_FILE = "output/rag_dm_log.csv"
 # ============================================================
 SUCCESS_STORIES = [
     {
-        "business": "Warung Nasi Padang Bu Rina",
-        "category": "kuliner",
-        "problem": "Hanya bisa ditemukan lewat Instagram, pelanggan jauh susah order",
-        "solution": "Buat website dengan menu online & Google Maps integration",
-        "result": "Kunjungan naik 40%, sekarang muncul di halaman pertama Google pencarian 'nasi padang jaksel'",
+        "business": "Local Restaurant",
+        "category": "food/restaurant",
+        "problem": "Only discoverable via Instagram, customers from far away couldn't order",
+        "solution": "Built a website with online menu & Google Maps integration",
+        "result": "Visits increased 40%, now appears on first page of Google search",
     },
     {
-        "business": "Batik Sogan Solo",
-        "category": "fashion/tekstil",
-        "problem": "Jual hanya di Tokopedia, tidak punya brand identity sendiri",
-        "solution": "Website dengan galeri koleksi & cerita brand",
-        "result": "Pembeli wholesale dari Bali & Surabaya mulai kontak langsung, margin lebih tinggi",
+        "business": "Handmade Fashion Brand",
+        "category": "fashion/textile",
+        "problem": "Sold only on marketplaces, no brand identity",
+        "solution": "Website with collection gallery & brand story",
+        "result": "Wholesale buyers started reaching out directly, higher margins",
     },
     {
-        "business": "Kue Kering Bu Dewi",
-        "category": "makanan",
-        "problem": "Order hanya lewat WA, susah kelola & sering kelewatan",
-        "solution": "Website dengan form order online & payment gateway",
-        "result": "Kapasitas produksi naik 2x karena sistem order lebih teratur",
+        "business": "Home Bakery",
+        "category": "bakery/food",
+        "problem": "Orders only via WhatsApp, hard to manage & often missed",
+        "solution": "Website with online order form & payment gateway",
+        "result": "Production capacity doubled thanks to organized ordering system",
     },
     {
-        "business": "Konveksi Bandung Jaya",
-        "category": "konveksi/garmen",
-        "problem": "Hanya dapat klien dari referral mulut ke mulut",
-        "solution": "Portfolio website dengan galeri produk & testimoni",
-        "result": "Dapat 3 klien korporat baru dari Jakarta dalam 2 bulan pertama",
+        "business": "Garment Workshop",
+        "category": "garment/clothing",
+        "problem": "Only got clients from word of mouth",
+        "solution": "Portfolio website with product gallery & testimonials",
+        "result": "Landed 3 new corporate clients in the first 2 months",
     },
 ]
+
+# Country code to language name mapping
+COUNTRY_LANGUAGE_MAP = {
+    "ID": "Indonesian",
+    "GB": "English",
+    "US": "English",
+    "AU": "English",
+    "NZ": "English",
+    "CA": "English",
+    "IE": "English",
+    "SG": "English",
+    "MY": "Malay",
+    "JP": "Japanese",
+    "KR": "Korean",
+    "CN": "Chinese",
+    "TW": "Chinese",
+    "TH": "Thai",
+    "VN": "Vietnamese",
+    "PH": "Filipino",
+    "IN": "Hindi",
+    "DE": "German",
+    "FR": "French",
+    "ES": "Spanish",
+    "IT": "Italian",
+    "PT": "Portuguese",
+    "BR": "Portuguese",
+    "NL": "Dutch",
+    "RU": "Russian",
+    "TR": "Turkish",
+    "SA": "Arabic",
+    "AE": "Arabic",
+    "EG": "Arabic",
+    "PL": "Polish",
+    "SE": "Swedish",
+    "NO": "Norwegian",
+    "DK": "Danish",
+    "FI": "Finnish",
+    "CZ": "Czech",
+    "HU": "Hungarian",
+    "RO": "Romanian",
+    "GR": "Greek",
+    "MX": "Spanish",
+    "AR": "Spanish",
+    "CL": "Spanish",
+    "CO": "Spanish",
+}
+
+def get_language_for_country(country_code: str) -> str:
+    """Get the target language for DM drafts based on country code."""
+    return COUNTRY_LANGUAGE_MAP.get(country_code.upper(), "English")
 
 
 # ============================================================
@@ -282,37 +341,46 @@ def generate_personalized_dm(lead: dict) -> str:
 
     username = lead.get("username", "")
     full_name = lead.get("full_name") or username
-    category = lead.get("category", "bisnis")
+    category = lead.get("category", "business")
     bio = lead.get("biography", "")
     followers = int(lead.get("follower_count", 0) or 0)
     website_type = lead.get("website_type", "kosong")
     has_phone = bool(lead.get("phone"))
+    
+    # Determine target language from country code
+    country_code = lead.get("country_code", "")
+    target_language = get_language_for_country(country_code)
 
     # Retrieve konteks relevan
     success_context = get_relevant_context(username, category)
 
-    system_prompt = """Kamu adalah sales copywriter ahli untuk jasa web development bernama @dripcodedev.
+    system_prompt = f"""You are an expert sales copywriter and outreach specialist for @dripcodedev, a premium web development agency.
 
-Tugasmu: Tulis pesan DM Instagram yang sangat personal dan natural untuk satu akun UMKM spesifik.
+Your task is to write a highly personalized, conversational, and compelling Instagram DM in {target_language} to pitch custom website development services to a local business (SMB).
 
-Aturan PENTING:
-1. JANGAN PERNAH menyebut atau menyertakan username dummy yang diawali '@osm_' (seperti @osm_4830378537). Sebagai gantinya, sebutkan nama asli bisnisnya secara langsung (misal: Soto Banjar Acil Miah).
-2. Pesan harus terasa ramah dan ditulis oleh manusia secara personal, hindari gaya bahasa kaku atau kata ganti "Gue", "Aku", "Saya". Gunakan sapaan yang sopan dan akrab seperti "Kak" atau sebut nama bisnisnya.
-3. Sebutkan detail spesifik dari bisnis mereka (seperti menu andalan, lokasi, atau bidang usahanya) agar mereka tahu ini bukan pesan otomatis/spam.
-4. JANGAN gunakan tanda petik ganda untuk membungkus seluruh isi pesan.
-5. Jangan terlalu panjang — maksimal 3-4 kalimat pendek.
-6. Akhiri dengan pertanyaan atau ajakan yang ringan dan ramah (soft CTA), bukan jualan langsung.
-7. Tulis HANYA teks pesan DM saja, tanpa penjelasan atau penutup lainnya."""
+Core Sales & Negotiation Guidelines:
+1. Build Instant Rapport: Start by mentioning a genuine detail about their business (e.g., their delicious menu, aesthetic collections, local presence, or unique offerings) so they know it is written specifically for them, not mass-sent spam.
+2. Present a Non-Intrusive Opportunity: Frame the pitch around growth and visibility rather than a generic sales pitch. Highlight that they are doing amazing things on Instagram, but could capture even more customers/leads and secure their brand with a dedicated, professional custom website (instead of just relying on Linktree, marketplaces, or Instagram).
+3. Soft CTA & Conversation Starter: Never do a hard close. End with a low-friction, open-ended question that invites dialogue (e.g., "Do you handle all your orders via DM, or have you ever thought about automated web ordering?") or offer a free value add (e.g., "We made a quick mockup of how your website could look—would it be alright if I sent it over?").
+4. Tone & Style: Keep it friendly, warm, professional, yet casual. Avoid stiff or overly corporate jargon. Do not use generic pronouns like "Sir" or "Madam". Write naturally, like one human messaging another.
 
-    user_prompt = f"""Buat DM Instagram yang personal untuk bisnis ini:
+Rules:
+1. NEVER include or reference dummy usernames starting with '@osm_' (e.g., @osm_4830378537). Instead, address the business by its real name.
+2. DO NOT use double quotes to wrap the entire message.
+3. Keep it short and readable — maximum 3-4 sentences.
+4. Output ONLY the raw DM text itself, without any explanations, pleasantries, introductory labels, or quotes.
+5. The ENTIRE message MUST be written in {target_language}."""
 
-PROFIL BISNIS:
-- Nama Bisnis: {full_name}
-- Kategori: {category}
-- Informasi Tambahan / Lokasi / Deskripsi: "{bio}"
-- Status website: {website_type} ({"tidak punya website asli" if website_type in ["kosong", "marketplace", "linkinbio"] else "sudah punya website"})
+    user_prompt = f"""Draft a personalized Instagram DM for this business:
 
-Tulis DM pendek, ramah, dan personal yang ditujukan langsung ke pemilik {full_name} agar mereka tertarik untuk berdiskusi."""
+BUSINESS PROFILE:
+- Business Name: {full_name}
+- Category: {category}
+- Info / Bio / Location: "{bio}"
+- Website Status: {website_type} ({"currently has no website" if website_type in ["kosong", "marketplace", "linkinbio"] else "already has a website"})
+- Country: {country_code}
+
+Write a short, engaging, and personalized outreach DM in {target_language} addressed to the owner of {full_name} to start a friendly business conversation."""
 
     messages = [
         SystemMessage(content=system_prompt),

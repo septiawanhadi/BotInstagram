@@ -3,6 +3,7 @@ resolve_ig_usernames.py
 Mencari username Instagram asli berdasarkan nama bisnis hasil scrap OpenStreetMap (OSM).
 """
 import os
+import sys
 import csv
 import time
 import random
@@ -10,6 +11,14 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from instagrapi import Client
+
+# Reconfigure stdout/stderr to UTF-8 to handle emojis safely on Windows
+for stream in (sys.stdout, sys.stderr):
+    if stream and hasattr(stream, 'reconfigure'):
+        try:
+            stream.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
 
 # Logging
 logging.basicConfig(
@@ -64,8 +73,18 @@ def main():
         
         # Hanya cari jika username saat ini masih berstatus dummy (osm_...)
         if old_username.startswith("osm_") and business_name:
-            query = f"{business_name} Surabaya"
-            log.info(f"[{i}/{len(rows)}] Mencari IG untuk: '{business_name}' (Query: '{query}')...")
+            # Extract city from lead data (city field or from biography)
+            city = row.get("city", "")
+            if not city:
+                bio = row.get("biography", "")
+                # Try to extract city from "Location: ..., CityName | ..."
+                if "Location:" in bio:
+                    location_part = bio.split("Location:")[-1].split("|")[0].strip()
+                    parts = [p.strip() for p in location_part.split(",")]
+                    city = parts[-1] if parts else ""
+            
+            query = f"{business_name} {city}".strip()
+            log.info(f"[{i}/{len(rows)}] Searching IG for: '{business_name}' (Query: '{query}')...")
             
             try:
                 # Cari user di Instagram
