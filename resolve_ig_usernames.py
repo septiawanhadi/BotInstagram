@@ -81,6 +81,31 @@ def main():
                     row["username"] = new_username
                     row["instagram_url"] = f"https://instagram.com/{new_username}"
                     
+                    # Tarik informasi detail kontak bisnis publik (email & no HP)
+                    try:
+                        user_info = cl.user_info(best_match.pk)
+                        if user_info:
+                            public_email = getattr(user_info, "public_email", "")
+                            contact_phone = getattr(user_info, "contact_phone_number", "") or getattr(user_info, "public_phone_number", "")
+                            bio_url = getattr(user_info, "external_url", "")
+                            
+                            if public_email:
+                                row["email"] = public_email
+                                log.info(f"     [EMAIL DETECTED]: {public_email}")
+                            if contact_phone:
+                                # Rapikan nomor HP kontak
+                                digits = "".join(c for c in contact_phone if c.isdigit() or c == "+")
+                                if digits.startswith("08"):
+                                    digits = "+62" + digits[1:]
+                                elif digits.startswith("628"):
+                                    digits = "+" + digits
+                                row["phone"] = digits
+                                log.info(f"     [PHONE DETECTED]: {digits}")
+                            if bio_url and (not row.get("external_url") or row.get("external_url") == ""):
+                                row["external_url"] = bio_url
+                    except Exception as e_info:
+                        log.warning(f"     Gagal menarik detail info kontak: {e_info}")
+                    
                     # Perbarui isi pesan RAG (ganti mention dummy @osm_ ke @username asli)
                     pesan = row.get("pesan_dm_rag", "")
                     if f"@{old_username}" in pesan:
