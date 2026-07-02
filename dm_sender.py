@@ -81,10 +81,8 @@ DM_DELAY_MAX = 90   # maksimum 90 detik
 # Maksimum DM per sesi (aman: 20-30 per hari)
 MAX_DM_PER_SESSION = 20
 
-# ============================================================
-# FILE TRACKING (untuk menghindari kirim ulang)
-# ============================================================
-TRACKING_FILE = "output/dm_sent_log.csv"
+BASE_DIR = Path(__file__).resolve().parent
+TRACKING_FILE = str(BASE_DIR / "output" / "dm_sent_log.csv")
 
 
 def find_latest_leads_file() -> str:
@@ -136,9 +134,11 @@ def log_dm_result(username: str, status: str, message_preview: str = ""):
 
 
 def load_leads(target_file: str = "", min_score: int = 60) -> list[dict]:
-    """Load leads dari file CSV dengan filter score."""
     if not target_file:
         target_file = find_latest_leads_file()
+    path_obj = Path(target_file)
+    if not path_obj.is_absolute():
+        target_file = str(BASE_DIR / target_file)
     if not os.path.exists(target_file):
         raise FileNotFoundError(
             f"Tidak ditemukan file leads di: {target_file}"
@@ -207,7 +207,7 @@ def create_instagram_client():
 
     cl = Client()
     cl.challenge_code_handler = challenge_code_handler
-    session_file = Path("session.json")
+    session_file = BASE_DIR / "session.json"
 
     # CARA 1: Login menggunakan Session ID Cookie (Paling aman, bypass challenge)
     if sessionid and sessionid != "isi_session_id_browser_anda_disini":

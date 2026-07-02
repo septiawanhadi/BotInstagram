@@ -42,9 +42,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("rag-dm")
 
+BASE_DIR = Path(__file__).resolve().parent
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-TRACKING_FILE = "output/rag_dm_log.csv"
+TRACKING_FILE = str(BASE_DIR / "output" / "rag_dm_log.csv")
 
 # ============================================================
 # CONTOH SUKSES — Knowledge Base untuk RAG
@@ -283,7 +284,11 @@ def generate_personalized_dm(lead: dict) -> str:
             subprocess.run(["pip", "install", "langchain-openai"], check=True)
             from langchain_openai import ChatOpenAI
             
-        local_url = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")
+        local_url = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1").strip()
+        # Otomatis tambahkan /v1 jika pengguna lupa menulisnya (seperti saat copy dari LM Studio)
+        if not local_url.endswith("/v1") and not local_url.endswith("/v1/"):
+            local_url = local_url.rstrip("/") + "/v1"
+            
         local_model = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
         
         log.info(f"Menggunakan LLM Lokal: {local_model} ({local_url})")
@@ -431,10 +436,11 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
         print("  [MODE TEST - Tidak kirim DM sungguhan]")
     print("=" * 55)
 
-    # Load leads dari CSV
-    csv_files = sorted(glob.glob("output/umkm_leads_*.csv"), reverse=True)
+    # Load leads dari CSV (menggunakan absolute path)
+    output_dir = BASE_DIR / "output"
+    csv_files = sorted(glob.glob(str(output_dir / "umkm_leads_*.csv")), reverse=True)
     if not csv_files:
-        print("[ERROR] Tidak ada CSV leads. Jalankan scraper.py dahulu.")
+        print(f"[ERROR] Tidak ada CSV leads di folder {output_dir}. Jalankan scraper.py dahulu.")
         return
 
     leads = []
@@ -473,7 +479,7 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
             try:
                 from instagrapi import Client
                 cl = Client()
-                session_file = Path("session.json")
+                session_file = BASE_DIR / "session.json"
                 if session_file.exists():
                     try:
                         cl.load_settings(session_file)
@@ -501,14 +507,18 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
             print(f"  {dm_text}")
             print(f"  ----------------------------\n")
 
+            ig_url = lead.get("instagram_url", "")
+            if not ig_url and not uname.startswith("osm_"):
+                ig_url = f"https://instagram.com/{uname}"
+
             drafts_created.append({
                 "username": uname,
                 "full_name": lead.get("full_name", ""),
                 "lead_score": lead.get("lead_score", ""),
                 "phone": lead.get("phone", ""),
                 "email": lead.get("email", ""),
+                "instagram_url": ig_url,
                 "google_maps_url": lead.get("google_maps_url", ""),
-                "instagram_url": lead.get("instagram_url", ""),
                 "pesan_dm_rag": dm_text,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
@@ -538,7 +548,7 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
 
     # Simpan hasil draf ke CSV terpisah jika ada draf yang dibuat
     if drafts_created:
-        draft_file = Path("output/rag_dm_drafts.csv")
+        draft_file = BASE_DIR / "output" / "rag_dm_drafts.csv"
         file_exists = draft_file.exists()
         with open(draft_file, "a", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=drafts_created[0].keys())

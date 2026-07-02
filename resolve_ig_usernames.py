@@ -30,8 +30,9 @@ log = logging.getLogger("ig-resolver")
 
 load_dotenv()
 
-INPUT_FILE = "output/rag_dm_drafts.csv"
-OUTPUT_FILE = "output/rag_dm_drafts_resolved.csv"
+BASE_DIR = Path(__file__).resolve().parent
+INPUT_FILE = str(BASE_DIR / "output" / "rag_dm_drafts.csv")
+OUTPUT_FILE = str(BASE_DIR / "output" / "rag_dm_drafts_resolved.csv")
 
 def verify_name_overlap(business_name: str, ig_user) -> bool:
     """Check if the matched Instagram account name or username has some overlap with the business name to prevent mismatching."""
@@ -128,6 +129,30 @@ def main():
                     # Update data baris
                     row["username"] = new_username
                     row["instagram_url"] = f"https://instagram.com/{new_username}"
+                    # Tarik informasi detail kontak bisnis publik (email & no HP)
+                    try:
+                        user_info = cl.user_info(matched_user.pk)
+                        if user_info:
+                            public_email = getattr(user_info, "public_email", "")
+                            contact_phone = getattr(user_info, "contact_phone_number", "") or getattr(user_info, "public_phone_number", "")
+                            bio_url = getattr(user_info, "external_url", "")
+                            
+                            if public_email:
+                                row["email"] = public_email
+                                log.info(f"     [EMAIL DETECTED]: {public_email}")
+                            if contact_phone:
+                                # Rapikan nomor HP kontak
+                                digits = "".join(c for c in contact_phone if c.isdigit() or c == "+")
+                                if digits.startswith("08"):
+                                    digits = "+62" + digits[1:]
+                                elif digits.startswith("628"):
+                                    digits = "+" + digits
+                                row["phone"] = digits
+                                log.info(f"     [PHONE DETECTED]: {digits}")
+                            if bio_url and (not row.get("external_url") or row.get("external_url") == ""):
+                                row["external_url"] = bio_url
+                    except Exception as e_info:
+                        log.warning(f"     Gagal menarik detail info kontak: {e_info}")
                     
                     # Perbarui isi pesan RAG (ganti mention dummy @osm_ ke @username asli)
                     pesan = row.get("pesan_dm_rag", "")

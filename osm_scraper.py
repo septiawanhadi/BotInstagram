@@ -163,6 +163,32 @@ def clean_phone(phone: str) -> str:
     return cleaned
 
 
+def is_business_active(tags: dict) -> bool:
+    """Memeriksa apakah bisnis masih aktif berdasarkan tag OSM."""
+    # 1. Periksa tag disused / abandoned / closed
+    closed_tags = ["disused", "abandoned", "closed", "vacant", "demolished"]
+    for tag in closed_tags:
+        if tags.get(tag) == "yes":
+            return False
+            
+    # 2. Periksa status khusus
+    if tags.get("status") in ["closed", "permanently_closed"]:
+        return False
+        
+    # 3. Periksa jika ada tag disused:amenity atau disused:shop
+    for key in tags.keys():
+        if key.startswith("disused:") or key.startswith("abandoned:"):
+            return False
+
+    # 4. Periksa nama bisnis
+    name = tags.get("name", "").lower()
+    closed_keywords = ["tutup", "closed", "permanently closed", "tutup permanen", "bekas", "eks ", "ex "]
+    if any(kw in name for kw in closed_keywords):
+        return False
+        
+    return True
+
+
 def process_osm_elements(elements: list, city_name: str, country_code: str = "") -> list[dict]:
     """Convert raw OSM data to standard UMKM Leads format."""
     leads = []
@@ -175,20 +201,9 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
         if not name:
             continue
             
-        # Skip permanently closed, disused, or abandoned businesses
-        if (tags.get("closed") == "yes" or 
-            tags.get("abandoned") == "yes" or 
-            tags.get("disused") == "yes" or 
-            tags.get("permanently_closed") == "yes" or 
-            tags.get("status") == "closed"):
+        # Cek keaktifan bisnis (lewati yang sudah tutup/tutup permanen/bangkrut)
+        if not is_business_active(tags):
             continue
-            
-        # Skip if name contains closed indicators
-        name_lower = name.lower()
-        if any(term in name_lower for term in ["closed", "tutup permanen", "permanently closed", "tutup selamanya"]):
-            continue
-            
-        # Phone
         phone = tags.get("phone") or tags.get("contact:phone") or tags.get("contact:whatsapp") or ""
         phone = clean_phone(phone)
         
@@ -238,6 +253,23 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
         username_id = ig_username if ig_username else f"osm_{el.get('id')}"
         instagram_profile_url = f"https://instagram.com/{ig_username}" if ig_username else ""
 
+        # Tentukan google_maps_url (spesifik dengan koordinat GPS dan query pencarian nama)
+        center = el.get("center") or {}
+        lat = el.get("lat") or center.get("lat")
+        lon = el.get("lon") or center.get("lon")
+        
+        if lat and lon:
+            # Mengarahkan peta tepat di titik koordinat dengan query nama bisnis
+            google_maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(name)}&center={lat},{lon}&zoom=18"
+        else:
+            search_query = f"{name} {address}"
+            google_maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(search_query)}"
+
+        # Tentukan instagram_url jika ada di tag OSM (prefer direct parsed, fallback to marketplace website)
+        instagram_url = instagram_profile_url
+        if not instagram_url and website_type == "marketplace" and "instagram.com" in website_lower:
+            instagram_url = website
+
         leads.append({
             "username": username_id,
             "full_name": name,
@@ -254,8 +286,8 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
             "has_website": True,
             "website_type": website_type,
             "last_post_days_ago": 0,
-            "google_maps_url": f"https://www.google.com/maps/place/?q={urllib.parse.quote(name + ' ' + city_name)}",
-            "instagram_url": instagram_profile_url,
+            "instagram_url": instagram_url,
+            "google_maps_url": google_maps_url,
             "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "country_code": country_code,
             "city": city_name,
@@ -264,8 +296,45 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
     return leads
 
 
+# ============================================================
+def calculate_lead_score_and_priority(lead: dict):
+    """Menghitung lead_score dan prioritas untuk leads UMKM."""
+    score = 40  # Base Score
+    
+    # 1. Category Bonus
+    category_lower = lead.get("category", "").lower()
+    if any(k in category_lower for k in ["beauty", "salon", "spa"]):
+        score += 15
+        
+    # 2. Phone Bonus
+    if lead.get("phone"):
+        score += 15
+        
+    # 3. Email Bonus
+    if lead.get("email"):
+        score += 10
+        
+    # 4. Website Type Penalty
+    if lead.get("website_type") == "linkinbio":
+        score -= 5
+        
+    # Tentukan prioritas
+    if score >= 70:
+        priority = "[TINGGI]"
+    elif score >= 45:
+        priority = "[SEDANG]"
+    else:
+        priority = "[RENDAH]"
+        
+    lead["lead_score"] = score
+    lead["prioritas"] = priority
+
+
+# ============================================================
+# MAIN SCRAPER RUNNER
+# ============================================================
 def run_osm_scraper(city: str):
-    """Run scraper and save results to JSON and CSV."""
+    """Jalankan scraper dan simpan hasil ke file JSON dan CSV Leads."""
     print("=" * 60)
     print(f"  OpenStreetMap Business Scraper — City: {city}")
     print("=" * 60 + "\n")
@@ -278,45 +347,53 @@ def run_osm_scraper(city: str):
         
     leads = process_osm_elements(elements, city, country_code)
     
-    print(f"\n[OK] Filtered {len(leads)} leads without a real website.")
+    if not leads:
+        print("\n[INFO] Tidak ada leads baru untuk diproses.")
+        return
+
+    # Hitung score & prioritas untuk setiap lead
+    for lead in leads:
+        calculate_lead_score_and_priority(lead)
+
+    print(f"\n[OK] Berhasil menyaring & menganalisa {len(leads)} leads UMKM.")
     
-    # Save to output/
-    output_dir = Path("output")
+    # Simpan ke folder output/ (menggunakan absolute path)
+    base_dir = Path(__file__).resolve().parent
+    output_dir = base_dir / "output"
     output_dir.mkdir(exist_ok=True)
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    # Compute lead_score
-    for lead in leads:
-        score = 50
-        if lead.get("phone"):
-            score += 20
-        if lead.get("email"):
-            score += 20
-        if lead.get("category") and lead.get("category") != "Local Business":
-            score += 10
-        lead["lead_score"] = min(score, 100)
-    
-    # 1. Save JSON
+    # 1. Simpan Data Mentah ke JSON
     json_filename = output_dir / f"umkm_raw_{timestamp}.json"
     with open(json_filename, "w", encoding="utf-8") as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
-    print(f"Raw data saved to: {json_filename}")
-    
-    # 2. Save CSV (umkm_leads_*.csv)
-    csv_filename = output_dir / f"umkm_leads_{timestamp}.csv"
-    if leads:
-        fieldnames = list(leads[0].keys())
-        with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(leads)
-        print(f"Leads CSV saved to: {csv_filename}")
+    print(f"Data JSON disimpan ke: {json_filename}")
         
+    # 2. Simpan Data Leads Matang ke CSV
+    csv_filename = output_dir / f"umkm_leads_{timestamp}.csv"
+    
+    # Header format CSV leads dengan index kolom pertama kosong sesuai struktur yang dibaca generator
+    fieldnames = [
+        "", "username", "full_name", "biography", "external_url", 
+        "follower_count", "following_count", "media_count", "phone", "email", 
+        "category", "is_business", "is_professional", "has_website", 
+        "website_type", "last_post_days_ago", "instagram_url", "google_maps_url", "scraped_at", 
+        "country_code", "city", "lead_score", "prioritas"
+    ]
+    
+    with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for idx, lead in enumerate(leads, 1):
+            row_data = lead.copy()
+            row_data[""] = idx # Kolom index pertama
+            writer.writerow(row_data)
+            
+    print(f"Data CSV Leads disimpan ke: {csv_filename}")
     print(f"\nCountry detected: {country_code or 'Unknown'}")
-    print("Next steps:")
-    print("  1. Run RAG AI to generate draft messages:")
-    print("     python rag_dm_generator.py --test --limit 5")
+    print("\nLangkah selanjutnya:")
+    print("  Jalankan RAG AI untuk generate draf pesan penawaran di dashboard web!")
 
 
 if __name__ == "__main__":
