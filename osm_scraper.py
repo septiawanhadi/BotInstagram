@@ -182,10 +182,44 @@ def process_osm_elements(elements: list, city_name: str) -> list[dict]:
 
 
 # ============================================================
+def calculate_lead_score_and_priority(lead: dict):
+    """Menghitung lead_score dan prioritas untuk leads UMKM."""
+    score = 40  # Base Score
+    
+    # 1. Category Bonus
+    category_lower = lead.get("category", "").lower()
+    if any(k in category_lower for k in ["beauty", "salon", "spa"]):
+        score += 15
+        
+    # 2. Phone Bonus
+    if lead.get("phone"):
+        score += 15
+        
+    # 3. Email Bonus
+    if lead.get("email"):
+        score += 10
+        
+    # 4. Website Type Penalty
+    if lead.get("website_type") == "linkinbio":
+        score -= 5
+        
+    # Tentukan prioritas
+    if score >= 70:
+        priority = "[TINGGI]"
+    elif score >= 45:
+        priority = "[SEDANG]"
+    else:
+        priority = "[RENDAH]"
+        
+    lead["lead_score"] = score
+    lead["prioritas"] = priority
+
+
+# ============================================================
 # MAIN SCRAPER RUNNER
 # ============================================================
 def run_osm_scraper(city: str):
-    """Jalankan scraper dan simpan hasil ke file JSON mentah."""
+    """Jalankan scraper dan simpan hasil ke file JSON dan CSV Leads."""
     print("=" * 60)
     print(f"  OpenStreetMap UMKM Scraper — Kota: {city}")
     print("=" * 60 + "\n")
@@ -198,22 +232,52 @@ def run_osm_scraper(city: str):
         
     leads = process_osm_elements(elements, city)
     
-    print(f"\n[OK] Berhasil menyaring {len(leads)} leads UMKM tanpa website asli.")
+    if not leads:
+        print("\n[INFO] Tidak ada leads baru untuk diproses.")
+        return
+
+    # Hitung score & prioritas untuk setiap lead
+    for lead in leads:
+        calculate_lead_score_and_priority(lead)
+
+    print(f"\n[OK] Berhasil menyaring & menganalisa {len(leads)} leads UMKM.")
     
-    # Simpan ke folder output/
-    output_dir = Path("output")
+    # Simpan ke folder output/ (menggunakan absolute path)
+    base_dir = Path(__file__).resolve().parent
+    output_dir = base_dir / "output"
     output_dir.mkdir(exist_ok=True)
     
-    json_filename = output_dir / f"umkm_raw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # 1. Simpan Data Mentah ke JSON
+    json_filename = output_dir / f"umkm_raw_{timestamp}.json"
     with open(json_filename, "w", encoding="utf-8") as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
+    print(f"Data JSON disimpan ke: {json_filename}")
         
-    print(f"Data mentah disimpan ke: {json_filename}")
+    # 2. Simpan Data Leads Matang ke CSV
+    csv_filename = output_dir / f"umkm_leads_{timestamp}.csv"
+    
+    # Header format CSV leads dengan index kolom pertama kosong sesuai struktur yang dibaca generator
+    fieldnames = [
+        "", "username", "full_name", "biography", "external_url", 
+        "follower_count", "following_count", "media_count", "phone", "email", 
+        "category", "is_business", "is_professional", "has_website", 
+        "website_type", "last_post_days_ago", "instagram_url", "scraped_at", 
+        "lead_score", "prioritas"
+    ]
+    
+    with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for idx, lead in enumerate(leads, 1):
+            row_data = lead.copy()
+            row_data[""] = idx # Kolom index pertama
+            writer.writerow(row_data)
+            
+    print(f"Data CSV Leads disimpan ke: {csv_filename}")
     print("\nLangkah selanjutnya:")
-    print("  1. Jalankan analyzer untuk export ke Excel:")
-    print("     python analyzer.py")
-    print("  2. Jalankan RAG AI untuk generate draf pesan penawaran:")
-    print("     python rag_dm_generator.py")
+    print("  Jalankan RAG AI untuk generate draf pesan penawaran di dashboard web!")
 
 
 if __name__ == "__main__":

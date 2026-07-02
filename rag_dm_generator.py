@@ -33,9 +33,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("rag-dm")
 
+BASE_DIR = Path(__file__).resolve().parent
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-TRACKING_FILE = "output/rag_dm_log.csv"
+TRACKING_FILE = str(BASE_DIR / "output" / "rag_dm_log.csv")
 
 # ============================================================
 # CONTOH SUKSES — Knowledge Base untuk RAG
@@ -363,10 +364,11 @@ def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
         print("  [MODE TEST - Tidak kirim DM sungguhan]")
     print("=" * 55)
 
-    # Load leads dari CSV
-    csv_files = sorted(glob.glob("output/umkm_leads_*.csv"), reverse=True)
+    # Load leads dari CSV (menggunakan absolute path)
+    output_dir = BASE_DIR / "output"
+    csv_files = sorted(glob.glob(str(output_dir / "umkm_leads_*.csv")), reverse=True)
     if not csv_files:
-        print("[ERROR] Tidak ada CSV leads. Jalankan scraper.py dahulu.")
+        print(f"[ERROR] Tidak ada CSV leads di folder {output_dir}. Jalankan scraper.py dahulu.")
         return
 
     leads = []
@@ -405,7 +407,7 @@ def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
             try:
                 from instagrapi import Client
                 cl = Client()
-                session_file = Path("session.json")
+                session_file = BASE_DIR / "session.json"
                 if session_file.exists():
                     try:
                         cl.load_settings(session_file)
@@ -469,7 +471,7 @@ def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
 
     # Simpan hasil draf ke CSV terpisah jika ada draf yang dibuat
     if drafts_created:
-        draft_file = Path("output/rag_dm_drafts.csv")
+        draft_file = BASE_DIR / "output" / "rag_dm_drafts.csv"
         file_exists = draft_file.exists()
         with open(draft_file, "a", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=drafts_created[0].keys())

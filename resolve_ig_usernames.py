@@ -21,8 +21,9 @@ log = logging.getLogger("ig-resolver")
 
 load_dotenv()
 
-INPUT_FILE = "output/rag_dm_drafts.csv"
-OUTPUT_FILE = "output/rag_dm_drafts_resolved.csv"
+BASE_DIR = Path(__file__).resolve().parent
+INPUT_FILE = str(BASE_DIR / "output" / "rag_dm_drafts.csv")
+OUTPUT_FILE = str(BASE_DIR / "output" / "rag_dm_drafts_resolved.csv")
 
 def main():
     if not os.path.exists(INPUT_FILE):
