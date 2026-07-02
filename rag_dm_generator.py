@@ -13,6 +13,7 @@ Cara pakai:
   python rag_dm_generator.py --limit 10      # Generate & kirim 10 DM
 """
 import os
+import sys
 import csv
 import glob
 import json
@@ -22,6 +23,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Paksa terminal Windows menggunakan UTF-8 agar mendukung cetak karakter emoji
+if sys.platform.startswith("win"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
