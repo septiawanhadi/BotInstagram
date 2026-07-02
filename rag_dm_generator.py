@@ -225,7 +225,11 @@ def generate_personalized_dm(lead: dict) -> str:
             subprocess.run(["pip", "install", "langchain-openai"], check=True)
             from langchain_openai import ChatOpenAI
             
-        local_url = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")
+        local_url = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1").strip()
+        # Otomatis tambahkan /v1 jika pengguna lupa menulisnya (seperti saat copy dari LM Studio)
+        if not local_url.endswith("/v1") and not local_url.endswith("/v1/"):
+            local_url = local_url.rstrip("/") + "/v1"
+            
         local_model = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
         
         log.info(f"Menggunakan LLM Lokal: {local_model} ({local_url})")
