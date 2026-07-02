@@ -906,6 +906,9 @@
                         <span>Virtual Terminal Terminal Console Output</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 15px;">
+                        <button class="btn" id="btn-copy-logs" style="padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); box-shadow: none;" onclick="copyTerminalLogs()">
+                            <i class="fa-solid fa-copy"></i> Salin Logs
+                        </button>
                         <div class="checkbox-group" style="margin-top: 0;">
                             <input type="checkbox" id="chk-autoscroll" checked>
                             <label for="chk-autoscroll" style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Autoscroll</label>
@@ -1344,6 +1347,29 @@
                 }
                 input.classList.add('dummy');
             }
+        }
+
+        // COPY TERMINAL LOGS TO CLIPBOARD
+        function copyTerminalLogs() {
+            const consoleBox = document.getElementById('terminal-log');
+            const lines = consoleBox.querySelectorAll('.log-line');
+            let text = '';
+            lines.forEach(line => {
+                text += line.innerText + '\n';
+            });
+            
+            if (!text.trim()) {
+                showToast("Terminal kosong, tidak ada logs untuk disalin.", "info");
+                return;
+            }
+            
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    showToast("Logs terminal berhasil disalin ke clipboard!", "success");
+                })
+                .catch(err => {
+                    showToast("Gagal menyalin logs: " + err, "error");
+                });
         }
 
         // RUN SCRIPT ENGINE
