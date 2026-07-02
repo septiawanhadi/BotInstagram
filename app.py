@@ -281,6 +281,8 @@ def get_drafts():
                     if row.get("username") == updated_username:
                         if new_username:
                             row["username"] = new_username
+                            if not new_username.startswith("osm_"):
+                                row["instagram_url"] = f"https://instagram.com/{new_username}"
                         if new_message is not None:
                             row["pesan_dm_rag"] = new_message
                     rows.append(row)

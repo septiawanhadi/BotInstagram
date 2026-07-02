@@ -1252,13 +1252,27 @@
                         
                         const isDummy = row.username.startsWith('osm_');
                         const usernameClass = isDummy ? 'td-username dummy' : 'td-username';
-                        const phone = row.phone || '-';
                         
+                        // Buat link Maps & IG
+                        let linksHtml = '';
+                        if (row.google_maps_url) {
+                            linksHtml += `<a href="${row.google_maps_url}" target="_blank" style="color: #f59e0b; font-size: 11px; margin-right: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Buka Lokasi Google Maps"><i class="fa-solid fa-map-location-dot"></i> Maps</a>`;
+                        }
+                        
+                        // Menangani render awal link Instagram
+                        const hasIg = row.instagram_url && row.instagram_url.startsWith('http');
+                        linksHtml += `<a href="${hasIg ? row.instagram_url : '#'}" class="ig-link-${idx}" target="_blank" style="color: #34d399; font-size: 11px; text-decoration: none; display: ${hasIg ? 'inline-flex' : 'none'}; align-items: center; gap: 4px;" title="Buka Profil Instagram"><i class="fa-brands fa-instagram"></i> Instagram</a>`;
+
                         html += `
                         <tr id="row-${idx}">
-                            <td><strong>${row.full_name || 'No Name'}</strong></td>
                             <td>
-                                <input type="text" class="input-table-username ${usernameClass}" id="input-username-${idx}" value="${row.username}">
+                                <strong>${row.full_name || 'No Name'}</strong>
+                                <div class="links-container-${idx}" style="margin-top: 6px; display: flex; align-items: center;">
+                                    ${linksHtml}
+                                </div>
+                            </td>
+                            <td>
+                                <input type="text" class="input-table-username ${usernameClass}" id="input-username-${idx}" value="${row.username}" oninput="updateIgLink(${idx}, this.value)">
                             </td>
                             <td><span class="td-score ${scoreClass}">${score}</span></td>
                             <td>
@@ -1308,6 +1322,28 @@
                 showToast("Terjadi kesalahan sistem.", "error");
                 console.error(err);
             });
+        }
+
+        // UPDATE INSTAGRAM LINK DYNAMICALLY
+        function updateIgLink(idx, username) {
+            const igLink = document.querySelector(`.ig-link-${idx}`);
+            const input = document.getElementById(`input-username-${idx}`);
+            
+            username = username.trim().replace(/^@/, '');
+            
+            if (username && !username.startsWith('osm_')) {
+                if (igLink) {
+                    igLink.href = `https://instagram.com/${username}`;
+                    igLink.style.display = 'inline-flex';
+                }
+                input.classList.remove('dummy');
+            } else {
+                if (igLink) {
+                    igLink.style.display = 'none';
+                    igLink.href = '#';
+                }
+                input.classList.add('dummy');
+            }
         }
 
         // RUN SCRIPT ENGINE

@@ -79,6 +79,7 @@ def main():
                     
                     # Update data baris
                     row["username"] = new_username
+                    row["instagram_url"] = f"https://instagram.com/{new_username}"
                     
                     # Perbarui isi pesan RAG (ganti mention dummy @osm_ ke @username asli)
                     pesan = row.get("pesan_dm_rag", "")

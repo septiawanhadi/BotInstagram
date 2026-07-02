@@ -103,6 +103,32 @@ def clean_phone(phone: str) -> str:
     return digits
 
 
+def is_business_active(tags: dict) -> bool:
+    """Memeriksa apakah bisnis masih aktif berdasarkan tag OSM."""
+    # 1. Periksa tag disused / abandoned / closed
+    closed_tags = ["disused", "abandoned", "closed", "vacant", "demolished"]
+    for tag in closed_tags:
+        if tags.get(tag) == "yes":
+            return False
+            
+    # 2. Periksa status khusus
+    if tags.get("status") in ["closed", "permanently_closed"]:
+        return False
+        
+    # 3. Periksa jika ada tag disused:amenity atau disused:shop
+    for key in tags.keys():
+        if key.startswith("disused:") or key.startswith("abandoned:"):
+            return False
+
+    # 4. Periksa nama bisnis
+    name = tags.get("name", "").lower()
+    closed_keywords = ["tutup", "closed", "permanently closed", "tutup permanen", "bekas", "eks ", "ex "]
+    if any(kw in name for kw in closed_keywords):
+        return False
+        
+    return True
+
+
 def process_osm_elements(elements: list, city_name: str) -> list[dict]:
     """Mengonversi data mentah OSM ke format standard UMKM Leads."""
     leads = []
@@ -113,6 +139,10 @@ def process_osm_elements(elements: list, city_name: str) -> list[dict]:
         
         # Bisnis tanpa nama di-skip
         if not name:
+            continue
+            
+        # Cek keaktifan bisnis (lewati yang sudah tutup/tutup permanen/bangkrut)
+        if not is_business_active(tags):
             continue
             
         # Ambil kontak telepon
@@ -158,6 +188,23 @@ def process_osm_elements(elements: list, city_name: str) -> list[dict]:
         # Buat dummy username sebagai ID unik
         username_id = f"osm_{el.get('id')}"
 
+        # Tentukan google_maps_url (spesifik dengan koordinat GPS dan query pencarian nama)
+        center = el.get("center") or {}
+        lat = el.get("lat") or center.get("lat")
+        lon = el.get("lon") or center.get("lon")
+        
+        if lat and lon:
+            # Mengarahkan peta tepat di titik koordinat dengan query nama bisnis
+            google_maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(name)}&center={lat},{lon}&zoom=18"
+        else:
+            search_query = f"{name} {address}"
+            google_maps_url = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(search_query)}"
+
+        # Tentukan instagram_url jika ada di tag OSM (misal jika ada link marketplace)
+        instagram_url = ""
+        if website_type == "marketplace" and "instagram.com" in website_lower:
+            instagram_url = website
+
         leads.append({
             "username": username_id,
             "full_name": name,
@@ -174,7 +221,8 @@ def process_osm_elements(elements: list, city_name: str) -> list[dict]:
             "has_website": True,
             "website_type": website_type,
             "last_post_days_ago": 0,
-            "instagram_url": f"https://www.google.com/maps/place/?q={urllib.parse.quote(name + ' ' + city_name)}",
+            "instagram_url": instagram_url,
+            "google_maps_url": google_maps_url,
             "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         })
 
@@ -263,7 +311,7 @@ def run_osm_scraper(city: str):
         "", "username", "full_name", "biography", "external_url", 
         "follower_count", "following_count", "media_count", "phone", "email", 
         "category", "is_business", "is_professional", "has_website", 
-        "website_type", "last_post_days_ago", "instagram_url", "scraped_at", 
+        "website_type", "last_post_days_ago", "instagram_url", "google_maps_url", "scraped_at", 
         "lead_score", "prioritas"
     ]
     

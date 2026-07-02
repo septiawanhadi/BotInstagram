@@ -435,13 +435,18 @@ def run(limit: int = 10, min_score: int = 60, test_mode: bool = False):
             print(f"  {dm_text}")
             print(f"  ----------------------------\n")
 
+            ig_url = lead.get("instagram_url", "")
+            if not ig_url and not uname.startswith("osm_"):
+                ig_url = f"https://instagram.com/{uname}"
+
             drafts_created.append({
                 "username": uname,
                 "full_name": lead.get("full_name", ""),
                 "lead_score": lead.get("lead_score", ""),
                 "phone": lead.get("phone", ""),
                 "email": lead.get("email", ""),
-                "instagram_url": lead.get("instagram_url", f"https://instagram.com/{uname}"),
+                "instagram_url": ig_url,
+                "google_maps_url": lead.get("google_maps_url", ""),
                 "pesan_dm_rag": dm_text,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
