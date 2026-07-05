@@ -12,10 +12,7 @@ import csv
 import time
 import random
 import logging
-import glob
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 

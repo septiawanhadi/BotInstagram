@@ -7,12 +7,10 @@ import csv
 import glob
 import subprocess
 import threading
-import time
 import logging
 from pathlib import Path
 from typing import Optional
 from flask import Flask, render_template, jsonify, request
-from dotenv import load_dotenv
 
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)

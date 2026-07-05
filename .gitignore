@@ -4,5 +4,9 @@ chroma_db/
 session.json
 output/
 __pycache__/
+node_modules/
+.vscode/
+.idea/
 *.pyc
 *.log
+.DS_Store

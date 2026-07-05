@@ -5,8 +5,6 @@ Mencari username Instagram asli berdasarkan nama bisnis hasil scrap OpenStreetMa
 import os
 import re
 import csv
-import time
-import random
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
