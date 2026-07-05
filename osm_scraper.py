@@ -6,6 +6,7 @@ Bebas login, 100% gratis, dan aman dari ban.
 import os
 import csv
 import json
+import time
 import logging
 import urllib.parse
 from datetime import datetime
@@ -67,21 +68,43 @@ out tags center;"""
 
 
 def fetch_osm_data(city: str) -> list:
-    """Mengambil data dari Overpass API."""
-    url = "https://overpass-api.de/api/interpreter"
+    """Mengambil data dari Overpass API dengan dukungan failover server."""
     query = build_overpass_query(city)
     
+    # Daftar server alternatif Overpass API di seluruh dunia
+    urls = [
+        "https://overpass-api.de/api/interpreter",          # Utama (Jerman)
+        "https://lz4.overpass-api.de/api/interpreter",      # Backup 1 (Jerman)
+        "https://z.overpass-api.de/api/interpreter",        # Backup 2 (Jerman)
+        "https://overpass.kumi.systems/api/interpreter",    # Backup 3 (Jerman)
+        "https://overpass.nchc.org.tw/api/interpreter"      # Backup 4 (Taiwan)
+    ]
+    
+    # Header yang menyerupai browser Chrome asli untuk melewati proteksi bot filter
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+    
     log.info(f"Mengirim query ke OpenStreetMap Overpass API untuk Kota: {city}...")
-    try:
-        response = requests.post(url, data={"data": query}, headers={"User-Agent": "UMKM_Scraper_Bot/1.0"}, timeout=120)
-        response.raise_for_status()
-        data = response.json()
-        elements = data.get("elements", [])
-        log.info(f"Berhasil mengunduh {len(elements)} data tempat dari OpenStreetMap.")
-        return elements
-    except Exception as e:
-        log.error(f"Gagal mengambil data dari Overpass API: {e}")
-        return []
+    
+    # Looping mencoba setiap server jika ada yang gagal/terblokir
+    for url in urls:
+        try:
+            log.info(f"Mencoba server: {url}")
+            response = requests.post(url, data={"data": query}, headers=headers, timeout=120)
+            response.raise_for_status()
+            data = response.json()
+            elements = data.get("elements", [])
+            log.info(f"Berhasil mengunduh {len(elements)} data tempat dari OpenStreetMap.")
+            return elements
+        except Exception as e:
+            log.warning(f"Gagal menggunakan server {url} ({e}). Mencoba server cadangan...")
+            time.sleep(2)  # Delay singkat sebelum mencoba server berikutnya
+            
+    log.error("Semua server alternatif Overpass API gagal diakses atau memblokir request.")
+    return []
 
 
 # ============================================================

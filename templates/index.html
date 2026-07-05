@@ -785,6 +785,26 @@
                         <i class="fa-solid fa-triangle-exclamation"></i>
                     </div>
                 </div>
+
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>Email Sukses Terkirim</h3>
+                        <div class="stat-value" id="stat-email-sent" style="color: var(--success-color);">0</div>
+                    </div>
+                    <div class="stat-icon green" style="background: rgba(16, 185, 129, 0.2);">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>Email Gagal / Terlewati</h3>
+                        <div class="stat-value" id="stat-email-failed">0</div>
+                    </div>
+                    <div class="stat-icon red">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                    </div>
+                </div>
             </div>
 
             <!-- DASHBOARD DETAILS -->
@@ -888,6 +908,24 @@
                             </div>
                         </div>
                         <button class="btn" id="btn-run-sender" onclick="runScript('dm_sender')">
+                            <i class="fa-solid fa-play"></i> Jalankan
+                        </button>
+                    </div>
+
+                    <!-- STEP 5: EMAIL SENDER -->
+                    <div class="workflow-step">
+                        <div class="step-num">5</div>
+                        <div class="step-details">
+                            <h3>Eksekutor Pengiriman Email Otomatis (SMTP)</h3>
+                            <p>Mengirim pesan penawaran kustom hasil AI langsung ke kotak masuk email/Gmail target bisnis secara massal.</p>
+                        </div>
+                        <div class="step-params">
+                            <div class="param-group">
+                                <label>Limit Kirim</label>
+                                <input type="number" id="step5-limit" value="10" class="input-mini">
+                            </div>
+                        </div>
+                        <button class="btn" id="btn-run-email-sender" onclick="runScript('email_sender')">
                             <i class="fa-solid fa-play"></i> Jalankan
                         </button>
                     </div>
@@ -1040,6 +1078,59 @@
                             </div>
                         </div>
 
+                        <!-- EMAIL OUTREACH CONFIGURATION -->
+                        <div class="form-section">
+                            <h3>Konfigurasi Pengiriman Email</h3>
+                            
+                            <div class="input-group" style="margin-bottom: 15px;">
+                                <label for="cfg-email-service">Metode Pengiriman Email</label>
+                                <select id="cfg-email-service" class="select-field" onchange="toggleEmailFields()">
+                                    <option value="smtp">Standard SMTP (Gmail, Yahoo, dsb)</option>
+                                    <option value="hostinger">Hostinger Agentic Mail (REST API)</option>
+                                </select>
+                            </div>
+
+                            <!-- SMTP Specific Fields -->
+                            <div id="fields-email-smtp" class="email-service-fields">
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-smtp-host">Host Server SMTP</label>
+                                    <input type="text" id="cfg-smtp-host" class="input-field" placeholder="smtp.gmail.com">
+                                </div>
+
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-smtp-port">Port SMTP</label>
+                                    <input type="text" id="cfg-smtp-port" class="input-field" placeholder="587">
+                                    <span class="input-hint">Gunakan 587 untuk TLS, atau 465 untuk SSL.</span>
+                                </div>
+
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-smtp-user">Username/Email Pengirim</label>
+                                    <input type="email" id="cfg-smtp-user" class="input-field" placeholder="dripcodedev@gmail.com">
+                                </div>
+
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-smtp-pass">Password Aplikasi SMTP</label>
+                                    <input type="password" id="cfg-smtp-pass" class="input-field" placeholder="App Password Gmail">
+                                    <span class="input-hint">Jika menggunakan Gmail, gunakan Sandi Aplikasi (App Password) 16 digit.</span>
+                                </div>
+                            </div>
+
+                            <!-- Hostinger API Specific Fields -->
+                            <div id="fields-email-hostinger" class="email-service-fields" style="display: none;">
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-hostinger-token">Hostinger Agentic Mail API Token</label>
+                                    <input type="password" id="cfg-hostinger-token" class="input-field" placeholder="Masukkan token API Hostinger Anda">
+                                    <span class="input-hint">Token ini terhubung dengan kotak masuk email AI Hostinger Anda.</span>
+                                </div>
+                            </div>
+
+                            <!-- Common Fields -->
+                            <div class="input-group">
+                                <label for="cfg-smtp-from">Nama Pengirim (From Name)</label>
+                                <input type="text" id="cfg-smtp-from" class="input-field" placeholder="DripCode Web Development">
+                            </div>
+                        </div>
+
                     </div>
 
                     <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; display: flex; justify-content: flex-end;">
@@ -1138,6 +1229,8 @@
                     document.getElementById('stat-resolved-drafts').innerText = `${data.resolved_drafts} / ${data.total_drafts}`;
                     document.getElementById('stat-dm-sent').innerText = data.dm_sent;
                     document.getElementById('stat-dm-failed').innerText = `${data.dm_failed} (${data.dm_skipped} skipped)`;
+                    document.getElementById('stat-email-sent').innerText = data.email_sent || 0;
+                    document.getElementById('stat-email-failed').innerText = data.email_failed || 0;
                     
                     document.getElementById('lbl-leads-file').innerText = data.active_leads_file;
                     document.getElementById('lbl-drafts-file').innerText = data.active_drafts_file;
@@ -1156,6 +1249,18 @@
                 document.getElementById('fields-openrouter').style.display = 'block';
             } else if (aiType === 'local') {
                 document.getElementById('fields-ollama').style.display = 'block';
+            }
+        }
+
+        // TOGGLE EMAIL Outreach Fields
+        function toggleEmailFields() {
+            const serviceType = document.getElementById('cfg-email-service').value;
+            document.querySelectorAll('.email-service-fields').forEach(f => f.style.display = 'none');
+            
+            if (serviceType === 'hostinger') {
+                document.getElementById('fields-email-hostinger').style.display = 'block';
+            } else {
+                document.getElementById('fields-email-smtp').style.display = 'block';
             }
         }
 
@@ -1180,7 +1285,17 @@
                     document.getElementById('cfg-ollama-url').value = data.LOCAL_LLM_URL || 'http://localhost:11434/v1';
                     document.getElementById('cfg-ollama-model').value = data.LOCAL_LLM_MODEL || 'gemma4:e4b';
                     
+                    document.getElementById('cfg-smtp-host').value = data.SMTP_HOST || 'smtp.gmail.com';
+                    document.getElementById('cfg-smtp-port').value = data.SMTP_PORT || '587';
+                    document.getElementById('cfg-smtp-user').value = data.SMTP_USER || '';
+                    document.getElementById('cfg-smtp-pass').value = data.SMTP_PASS || '';
+                    document.getElementById('cfg-smtp-from').value = data.SMTP_FROM_NAME || 'DripCode Web Development';
+                    
+                    document.getElementById('cfg-email-service').value = data.EMAIL_SERVICE_TYPE || 'smtp';
+                    document.getElementById('cfg-hostinger-token').value = data.HOSTINGER_API_TOKEN || '';
+                    
                     toggleAiFields();
+                    toggleEmailFields();
                 })
                 .catch(err => {
                     showToast("Gagal memuat file pengaturan .env", "error");
@@ -1206,7 +1321,14 @@
                 OPENROUTER_API_KEY: document.getElementById('cfg-or-key').value.trim(),
                 OPENROUTER_MODEL: document.getElementById('cfg-or-model').value.trim(),
                 LOCAL_LLM_URL: document.getElementById('cfg-ollama-url').value.trim(),
-                LOCAL_LLM_MODEL: document.getElementById('cfg-ollama-model').value.trim()
+                LOCAL_LLM_MODEL: document.getElementById('cfg-ollama-model').value.trim(),
+                EMAIL_SERVICE_TYPE: document.getElementById('cfg-email-service').value,
+                HOSTINGER_API_TOKEN: document.getElementById('cfg-hostinger-token').value.trim(),
+                SMTP_HOST: document.getElementById('cfg-smtp-host').value.trim(),
+                SMTP_PORT: document.getElementById('cfg-smtp-port').value.trim(),
+                SMTP_USER: document.getElementById('cfg-smtp-user').value.trim(),
+                SMTP_PASS: document.getElementById('cfg-smtp-pass').value,
+                SMTP_FROM_NAME: document.getElementById('cfg-smtp-from').value.trim()
             };
 
             fetch('/api/env', {
@@ -1393,6 +1515,10 @@
                 // Selalu panggil resolved drafts
                 args.push('--csv', 'output/rag_dm_drafts_resolved.csv');
                 if (limit) args.push('--limit', limit);
+            } else if (scriptName === 'email_sender') {
+                const limit = document.getElementById('step5-limit').value.trim();
+                args.push('--csv', 'output/rag_dm_drafts_resolved.csv');
+                if (limit) args.push('--limit', limit);
             }
 
             // Disable all run buttons
@@ -1505,6 +1631,7 @@
             document.getElementById('btn-run-generator').disabled = disabled;
             document.getElementById('btn-run-resolver').disabled = disabled;
             document.getElementById('btn-run-sender').disabled = disabled;
+            document.getElementById('btn-run-email-sender').disabled = disabled;
         }
 
         // ESCAPE HTML TO PREVENT FORMATTING BUGS
