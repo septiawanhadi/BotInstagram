@@ -15,12 +15,10 @@ Cara pakai:
 import os
 import sys
 import csv
-import glob
 import json
 import logging
 import random
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 

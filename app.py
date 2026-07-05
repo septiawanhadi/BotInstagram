@@ -8,12 +8,10 @@ import csv
 import glob
 import subprocess
 import threading
-import time
 import logging
 from pathlib import Path
 from typing import Optional
 from flask import Flask, render_template, jsonify, request
-from dotenv import load_dotenv
 
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
@@ -175,6 +173,23 @@ def stats():
         except Exception as e:
             log.error(f"Gagal membaca log sent: {e}")
 
+    # 4. Hitung status Email dikirim
+    email_log = Path("output/email_sent_log.csv")
+    email_sent = 0
+    email_failed = 0
+    if email_log.exists():
+        try:
+            with open(email_log, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    status = row.get("status")
+                    if status == "sent":
+                        email_sent += 1
+                    elif status == "failed":
+                        email_failed += 1
+        except Exception as e:
+            log.error(f"Gagal membaca log email_sent: {e}")
+
     return jsonify({
         "total_leads": total_leads,
         "high_score_leads": high_score_leads,
@@ -183,6 +198,8 @@ def stats():
         "dm_sent": dm_sent,
         "dm_failed": dm_failed,
         "dm_skipped": dm_skipped,
+        "email_sent": email_sent,
+        "email_failed": email_failed,
         "active_leads_file": osm_file.name if osm_file else "None",
         "active_drafts_file": draft_file.name if draft_file.exists() else "None"
     })
@@ -248,7 +265,9 @@ def manage_env():
         "IG_USERNAME", "IG_PASSWORD", "IG_SESSIONID", 
         "AI_TYPE", "GEMINI_API_KEY", "GEMINI_MODEL",
         "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
-        "LOCAL_LLM_URL", "LOCAL_LLM_MODEL"
+        "LOCAL_LLM_URL", "LOCAL_LLM_MODEL",
+        "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM_NAME",
+        "EMAIL_SERVICE_TYPE", "HOSTINGER_API_TOKEN"
     ]
     for key in default_keys:
         if key not in env_data:
@@ -339,7 +358,8 @@ def run_script():
         "scraper": "osm_scraper.py",
         "generator": "rag_dm_generator.py",
         "resolver": "resolve_ig_usernames.py",
-        "dm_sender": "dm_sender.py"
+        "dm_sender": "dm_sender.py",
+        "email_sender": "email_sender.py"
     }
     
     if script not in script_map:

@@ -7,6 +7,7 @@ import os
 import sys
 import csv
 import json
+import time
 import logging
 import re
 import urllib.parse
@@ -116,38 +117,47 @@ out tags center;"""
 
 
 def fetch_osm_data(city: str) -> tuple[list, str]:
-    """Mengambil data dari Overpass API. Returns (elements, country_code)."""
-    mirrors = [
-        "https://overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://lz4.overpass-api.de/api/interpreter",
-    ]
-    
+    """Mengambil data dari Overpass API dengan dukungan failover server. Returns (elements, country_code)."""
     # 1. Geocode kota untuk bbox + country code
     geo = geocode_city(city)
     bbox = geo["bbox"]
     country_code = geo["country_code"]
     query = build_overpass_query(city, bbox)
     
-    for url in mirrors:
-        log.info(f"Querying Overpass API ({url}) for: {city}...")
+    # Daftar server alternatif Overpass API di seluruh dunia
+    urls = [
+        "https://overpass-api.de/api/interpreter",          # Utama (Jerman)
+        "https://lz4.overpass-api.de/api/interpreter",      # Backup 1 (Jerman)
+        "https://z.overpass-api.de/api/interpreter",        # Backup 2 (Jerman)
+        "https://overpass.kumi.systems/api/interpreter",    # Backup 3 (Jerman)
+        "https://overpass.nchc.org.tw/api/interpreter"      # Backup 4 (Taiwan)
+    ]
+    
+    # Header yang menyerupai browser Chrome asli untuk melewati proteksi bot filter
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+    
+    log.info(f"Mengirim query ke OpenStreetMap Overpass API untuk Kota: {city}...")
+    
+    # Looping mencoba setiap server jika ada yang gagal/terblokir
+    for url in urls:
         try:
-            timeout_val = 30 if bbox else 45
-            response = requests.post(
-                url, 
-                data={"data": query}, 
-                headers={"User-Agent": "UMKM_Scraper_Bot/1.0"}, 
-                timeout=timeout_val
-            )
+            log.info(f"Mencoba server: {url}")
+            timeout_val = 120 if bbox else 150
+            response = requests.post(url, data={"data": query}, headers=headers, timeout=timeout_val)
             response.raise_for_status()
             data = response.json()
             elements = data.get("elements", [])
-            log.info(f"Downloaded {len(elements)} places from OpenStreetMap.")
+            log.info(f"Berhasil mengunduh {len(elements)} data tempat dari OpenStreetMap.")
             return elements, country_code
         except Exception as e:
-            log.warning(f"Mirror {url} failed: {e}. Trying next...")
+            log.warning(f"Gagal menggunakan server {url} ({e}). Mencoba server cadangan...")
+            time.sleep(2)  # Delay singkat sebelum mencoba server berikutnya
             
-    log.error("All Overpass API servers failed. Please try again later.")
+    log.error("Semua server alternatif Overpass API gagal diakses atau memblokir request.")
     return [], country_code
 
 

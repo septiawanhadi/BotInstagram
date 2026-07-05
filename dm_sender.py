@@ -13,10 +13,7 @@ import csv
 import time
 import random
 import logging
-import glob
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Reconfigure stdout/stderr to UTF-8 to handle emojis safely on Windows
 for stream in (sys.stdout, sys.stderr):

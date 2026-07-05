@@ -4,9 +4,8 @@ Mencari username Instagram asli berdasarkan nama bisnis hasil scrap OpenStreetMa
 """
 import os
 import sys
+import re
 import csv
-import time
-import random
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
@@ -137,6 +136,15 @@ def main():
                             contact_phone = getattr(user_info, "contact_phone_number", "") or getattr(user_info, "public_phone_number", "")
                             bio_url = getattr(user_info, "external_url", "")
                             
+                            # Jika public_email kosong, coba cari lewat Regex di teks biografi (bio)
+                            if not public_email:
+                                bio_text = getattr(user_info, "biography", "")
+                                if bio_text:
+                                    found_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', bio_text)
+                                    if found_emails:
+                                        public_email = found_emails[0]
+                                        log.info(f"     [EMAIL DETECTED VIA REGEX BIO]: {public_email}")
+
                             if public_email:
                                 row["email"] = public_email
                                 log.info(f"     [EMAIL DETECTED]: {public_email}")
