@@ -252,6 +252,15 @@ def main():
             delay = random.randint(5, 9)
             time.sleep(delay)
 
+            # Simpan progress secara bertahap (incremental autosave) agar aman jika laptop mati/mati lampu mid-way
+            try:
+                with open(OUTPUT_FILE, "w", newline="", encoding="utf-8-sig") as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+                    writer.writeheader()
+                    writer.writerows(rows)
+            except Exception as e_save:
+                log.warning(f"Gagal melakukan autosave progress: {e_save}")
+
     # Simpan hasil akhir
     Path("output").mkdir(exist_ok=True)
     with open(OUTPUT_FILE, "w", newline="", encoding="utf-8-sig") as f:
