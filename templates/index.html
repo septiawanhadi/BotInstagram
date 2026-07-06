@@ -10,6 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- LeafletJS for Interactive Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     
     <style>
         :root {
@@ -691,6 +694,409 @@
         @keyframes rotate {
             100% { transform: rotate(360deg); }
         }
+
+        /* ============================================================
+           LEADS MANAGEMENT DASHBOARD — NEW STYLES
+        ============================================================ */
+
+        /* Map Panel */
+        #leads-map-container {
+            width: 100%;
+            height: 360px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid var(--panel-border);
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        #leads-map { width: 100%; height: 100%; }
+
+        /* Leaflet popup overrides */
+        .leaflet-popup-content-wrapper {
+            background: #0f172a;
+            color: #f8fafc;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        .leaflet-popup-tip { background: #0f172a; }
+        .leaflet-popup-content { font-family: 'Outfit', sans-serif; font-size: 13px; line-height: 1.6; }
+        .popup-name { font-weight: 700; font-size: 14px; color: #818cf8; margin-bottom: 4px; }
+        .popup-cat { color: #94a3b8; font-size: 12px; }
+        .popup-score-high { color: #10b981; font-weight: 600; }
+        .popup-score-med { color: #f59e0b; font-weight: 600; }
+        .popup-score-low { color: #64748b; font-weight: 600; }
+
+        /* Stats bar */
+        .leads-stats-bar {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .leads-stat-chip {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .leads-stat-chip b { color: var(--text-primary); }
+        .leads-stat-chip.accent { border-color: rgba(99,102,241,0.4); }
+        .leads-stat-chip.green { border-color: rgba(16,185,129,0.4); }
+        .leads-stat-chip.yellow { border-color: rgba(245,158,11,0.4); }
+        .leads-stat-chip.blue { border-color: rgba(59,130,246,0.4); }
+
+        /* Search & filter row */
+        .leads-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .leads-search {
+            flex: 1;
+            min-width: 200px;
+            background: rgba(15,23,42,0.7);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            padding: 10px 16px 10px 38px;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            font-family: 'Outfit', sans-serif;
+            transition: border-color 0.2s;
+        }
+        .leads-search:focus { border-color: var(--accent-color); }
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .leads-filter-select {
+            background: rgba(15,23,42,0.7);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+        }
+
+        /* ENHANCED TABLE */
+        .leads-mgmt-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .leads-mgmt-table thead th {
+            background: rgba(2,6,23,0.8);
+            padding: 13px 14px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--panel-border);
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .leads-mgmt-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text-secondary);
+            vertical-align: middle;
+        }
+        .leads-mgmt-table tr:hover td {
+            background: rgba(99,102,241,0.04);
+            color: var(--text-primary);
+        }
+        .leads-mgmt-table tr.highlighted td {
+            background: rgba(99,102,241,0.1);
+        }
+        .tbl-name { font-weight: 600; color: var(--text-primary); max-width: 160px; }
+        .tbl-name small { display: block; color: var(--text-muted); font-size: 11px; font-weight: 400; margin-top: 2px; }
+
+        /* Category badge */
+        .badge-cat {
+            display: inline-block;
+            background: rgba(99,102,241,0.12);
+            color: #818cf8;
+            border: 1px solid rgba(99,102,241,0.25);
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        /* Priority badge */
+        .badge-prio-high { background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+        .badge-prio-med { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+        .badge-prio-low { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.25); }
+        .badge-prio-high, .badge-prio-med, .badge-prio-low {
+            display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600;
+        }
+
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .status-sent { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+        .status-failed { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+        .status-pending { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+        .status-empty { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+
+        /* Draft preview */
+        .draft-preview {
+            font-size: 12px;
+            color: var(--text-muted);
+            max-width: 180px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+        .draft-preview:hover { color: var(--text-secondary); }
+        .draft-preview.has-draft { color: var(--text-secondary); }
+        .draft-preview.no-draft { color: rgba(245,158,11,0.6); font-style: italic; }
+
+        /* Action buttons row */
+        .action-btns {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .btn-act {
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+            border: 1px solid;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.18s;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .btn-act[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: calc(100% + 5px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(2,6,23,0.95);
+            color: #f8fafc;
+            font-size: 11px;
+            white-space: nowrap;
+            border-radius: 5px;
+            padding: 4px 8px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .btn-act-save { background: rgba(16,185,129,0.1); color: #10b981; border-color: rgba(16,185,129,0.3); }
+        .btn-act-save:hover { background: #10b981; color: white; }
+        .btn-act-dm { background: rgba(99,102,241,0.1); color: #818cf8; border-color: rgba(99,102,241,0.3); }
+        .btn-act-dm:hover { background: #6366f1; color: white; }
+        .btn-act-dm-send { background: rgba(236,72,153,0.1); color: #f472b6; border-color: rgba(236,72,153,0.3); }
+        .btn-act-dm-send:hover { background: #ec4899; color: white; }
+        .btn-act-email { background: rgba(59,130,246,0.1); color: #60a5fa; border-color: rgba(59,130,246,0.3); }
+        .btn-act-email:hover { background: #3b82f6; color: white; }
+        .btn-act-gen { background: rgba(245,158,11,0.1); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+        .btn-act-gen:hover { background: #f59e0b; color: #0f172a; }
+        .btn-act:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+        /* Copyable field */
+        .copy-field {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 130px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .copy-field:hover { color: #60a5fa; }
+        .copy-field i { font-size: 10px; opacity: 0.5; }
+
+        /* IG Username input */
+        .ig-username-input {
+            background: rgba(15,23,42,0.6);
+            border: 1px solid var(--panel-border);
+            color: #818cf8;
+            padding: 5px 9px;
+            border-radius: 6px;
+            font-size: 12px;
+            width: 110px;
+            outline: none;
+        }
+        .ig-username-input.dummy { color: var(--text-muted); }
+        .ig-username-input:focus { border-color: var(--accent-color); }
+
+        /* Icon links */
+        .icon-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.18s;
+        }
+        .icon-link-maps { background: rgba(245,158,11,0.1); color: #f59e0b; }
+        .icon-link-maps:hover { background: #f59e0b; color: #0f172a; }
+        .icon-link-ig { background: rgba(52,211,153,0.1); color: #34d399; }
+        .icon-link-ig:hover { background: #34d399; color: #0f172a; }
+
+        /* Pagination */
+        .leads-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .btn-page {
+            background: rgba(15,23,42,0.6);
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+        .btn-page:hover { border-color: var(--accent-color); color: var(--accent-color); }
+        .btn-page.active { background: var(--accent-color); color: white; border-color: var(--accent-color); }
+        .btn-page:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-info { font-size: 13px; color: var(--text-muted); }
+
+        /* DRAFT EDIT MODAL */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .modal-box {
+            background: #0f172a;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 28px;
+            width: 600px;
+            max-width: 90vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+        .modal-overlay.open .modal-box { transform: scale(1); }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 18px;
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .modal-close:hover { color: var(--text-primary); }
+        .modal-textarea {
+            width: 100%;
+            background: rgba(2,6,23,0.8);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            min-height: 200px;
+            resize: vertical;
+            outline: none;
+            font-family: 'Outfit', sans-serif;
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+        .modal-textarea:focus { border-color: var(--accent-color); }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 14px;
+            background: rgba(2,6,23,0.4);
+            border-radius: 8px;
+            padding: 4px;
+        }
+        .modal-tab {
+            flex: 1;
+            padding: 7px 14px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+        .modal-tab.active {
+            background: var(--accent-color);
+            color: white;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -976,38 +1382,148 @@
             </div>
         </div>
 
-        <!-- 3. LEADS & DRAFTS TAB -->
+        <!-- 3. LEADS MANAGEMENT DASHBOARD TAB -->
         <div id="leads" class="tab-content">
+
+            <!-- MAP PANEL -->
+            <div class="panel" style="padding: 20px;">
+                <div class="panel-header" style="margin-bottom: 16px;">
+                    <h2><i class="fa-solid fa-map-location-dot" style="color: #f59e0b; margin-right: 8px;"></i>Peta Distribusi Leads</h2>
+                    <span id="lbl-leads-map-count" style="font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 10px;">Memuat peta...</span>
+                </div>
+                <div id="leads-map-container">
+                    <div id="leads-map"></div>
+                </div>
+                <!-- Map Legend -->
+                <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; margin-top: 10px;">
+                    <span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10b981; margin-right:5px;"></span>High Score (≥70)</span>
+                    <span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#f59e0b; margin-right:5px;"></span>Medium (45–69)</span>
+                    <span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#64748b; margin-right:5px;"></span>Low (&lt;45)</span>
+                    <span style="margin-left: auto; font-style: italic;">Klik marker untuk melihat detail — klik baris tabel untuk highlight di peta</span>
+                </div>
+            </div>
+
+            <!-- TABLE PANEL -->
             <div class="panel">
                 <div class="panel-header">
-                    <h2>Manajer Draf Pesan & Leads</h2>
-                    <span id="lbl-table-source" style="font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 10px;">File: -</span>
+                    <h2><i class="fa-solid fa-table-list" style="color: #818cf8; margin-right: 8px;"></i>Leads Management</h2>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span id="lbl-leads-file-src" style="font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 10px;">File: -</span>
+                        <button class="btn" onclick="loadLeadsData()" style="padding: 6px 14px; font-size: 13px;">
+                            <i class="fa-solid fa-rotate-right"></i> Refresh
+                        </button>
+                    </div>
                 </div>
-                
-                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; line-height: 1.6;">
-                    Di bawah ini adalah data draf pesan kustom hasil AI RAG. Anda dapat **mengedit username** (mengubah dari format dummy `osm_xxxx` menjadi username asli jika pencarian resolver melewatinya) serta **mengedit isi pesan copywriting** sebelum dikirim secara massal. Tekan tombol disket hijau di sebelah kanan untuk menyimpan baris.
-                </p>
 
-                <div class="table-container">
-                    <table class="leads-table">
+                <!-- Stats chips -->
+                <div class="leads-stats-bar" id="leads-stats-bar">
+                    <div class="leads-stat-chip accent"><i class="fa-solid fa-database"></i> Total: <b id="ls-total">—</b></div>
+                    <div class="leads-stat-chip green"><i class="fa-solid fa-star"></i> High Score: <b id="ls-high">—</b></div>
+                    <div class="leads-stat-chip yellow"><i class="fa-solid fa-at"></i> With Email: <b id="ls-email">—</b></div>
+                    <div class="leads-stat-chip blue"><i class="fa-brands fa-instagram"></i> IG Resolved: <b id="ls-ig">—</b></div>
+                    <div class="leads-stat-chip green"><i class="fa-solid fa-paper-plane"></i> DMs Sent: <b id="ls-dm-sent">—</b></div>
+                    <div class="leads-stat-chip blue"><i class="fa-solid fa-envelope-circle-check"></i> Emails Sent: <b id="ls-email-sent">—</b></div>
+                </div>
+
+                <!-- Controls: search + filter -->
+                <div class="leads-controls">
+                    <div class="search-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" class="leads-search" id="leads-search-input" placeholder="Cari nama, kategori, email, username..." oninput="filterAndRenderLeads()">
+                    </div>
+                    <select class="leads-filter-select" id="leads-filter-status" onchange="filterAndRenderLeads()">
+                        <option value="">Semua Status DM</option>
+                        <option value="dm_sent">DM Terkirim</option>
+                        <option value="dm_pending">DM Pending</option>
+                        <option value="dm_failed">DM Gagal</option>
+                    </select>
+                    <select class="leads-filter-select" id="leads-filter-draft" onchange="filterAndRenderLeads()">
+                        <option value="">Semua Draft</option>
+                        <option value="has_draft">Sudah Ada Draft</option>
+                        <option value="no_draft">Belum Ada Draft</option>
+                    </select>
+                    <select class="leads-filter-select" id="leads-filter-email" onchange="filterAndRenderLeads()">
+                        <option value="">Semua Email</option>
+                        <option value="has_email">Punya Email</option>
+                        <option value="no_email">Tanpa Email</option>
+                    </select>
+                    <select class="leads-filter-select" id="leads-filter-ig" onchange="filterAndRenderLeads()">
+                        <option value="">Semua Username IG</option>
+                        <option value="has_ig">Resolved (Asli)</option>
+                        <option value="dummy_ig">Dummy (osm_...)</option>
+                    </select>
+                    <select class="leads-filter-select" id="leads-filter-phone" onchange="filterAndRenderLeads()">
+                        <option value="">Semua Telepon</option>
+                        <option value="has_phone">Punya Telepon</option>
+                        <option value="no_phone">Tanpa Telepon</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div class="table-container" style="max-height: 600px; overflow-y: auto;">
+                    <table class="leads-mgmt-table">
                         <thead>
                             <tr>
-                                <th style="width: 150px;">Nama Bisnis</th>
-                                <th style="width: 150px;">Username IG</th>
-                                <th style="width: 80px;">Skor</th>
-                                <th>Copywriting Pesan Kustom RAG AI</th>
-                                <th style="width: 80px; text-align: center;">Aksi</th>
+                                <th style="width:30px;">#</th>
+                                <th style="min-width:160px;">Nama Bisnis</th>
+                                <th style="min-width:90px;">Kategori</th>
+                                <th style="width:55px;">Skor</th>
+                                <th style="width:75px;">Prioritas</th>
+                                <th style="min-width:110px;">Telepon</th>
+                                <th style="min-width:130px;">Email</th>
+                                <th style="min-width:130px;">Instagram</th>
+                                <th style="width:50px;">Maps</th>
+                                <th style="min-width:180px;">IG Draft</th>
+                                <th style="min-width:180px;">Email Draft</th>
+                                <th style="width:90px; text-align:center;">DM Status</th>
+                                <th style="width:90px; text-align:center;">Email Status</th>
+                                <th style="width:130px; text-align:center;">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody id="tbl-leads-body">
-                            <tr>
-                                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">Memuat data draf...</td>
-                            </tr>
+                        <tbody id="tbl-leads-mgmt-body">
+                            <tr><td colspan="14" style="text-align:center; color:var(--text-muted); padding:40px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px;"></i><br><br>Memuat data leads...</td></tr>
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Pagination -->
+                <div class="leads-pagination" id="leads-pagination"></div>
             </div>
         </div>
+
+        <!-- DRAFT EDIT MODAL -->
+        <div class="modal-overlay" id="draft-modal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <span class="modal-title" id="modal-lead-name">Edit Draft</span>
+                    <button class="modal-close" onclick="closeDraftModal()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-tabs">
+                    <button class="modal-tab active" id="modal-tab-dm" onclick="switchModalTab('dm')"><i class="fa-brands fa-instagram" style="margin-right:6px;"></i>IG DM Draft</button>
+                    <button class="modal-tab" id="modal-tab-email" onclick="switchModalTab('email')"><i class="fa-solid fa-envelope" style="margin-right:6px;"></i>Email Draft</button>
+                </div>
+                <div id="modal-tab-dm-content">
+                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Pesan DM Instagram personal untuk dikirim ke bisnis ini:</p>
+                    <textarea class="modal-textarea" id="modal-dm-text" placeholder="Belum ada draft DM. Klik 'Generate AI' untuk membuat draft otomatis."></textarea>
+                </div>
+                <div id="modal-tab-email-content" style="display:none;">
+                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Pesan cold email untuk dikirim via SMTP/Hostinger:</p>
+                    <textarea class="modal-textarea" id="modal-email-text" placeholder="Belum ada draft email. Anda dapat mengisi manual atau menyalin dari draft DM."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);" onclick="generateDraftFromModal()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI
+                    </button>
+                    <button class="btn" style="background:rgba(59,130,246,0.15); color:#60a5fa; border-color:rgba(59,130,246,0.3);" onclick="copyEmailFromDM()">
+                        <i class="fa-solid fa-copy"></i> Salin dari DM
+                    </button>
+                    <button class="btn" onclick="saveDraftFromModal()">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan
+                    </button>
+                </div>
+            </div>
+        </div>
+
 
         <!-- 4. SETTINGS TAB -->
         <div id="settings" class="tab-content">
@@ -1174,7 +1690,7 @@
         const tabTitles = {
             'dashboard': { title: 'Dashboard Utama', subtitle: 'Ringkasan performa kampanye pemasaran otonom Anda.' },
             'workflow': { title: 'Workflow Manager', subtitle: 'Jalankan skrip otonom langkah-demi-langkah.' },
-            'leads': { title: 'Leads & Drafts Manager', subtitle: 'Edit copywriting AI kustom sebelum dikirim ke Instagram.' },
+            'leads': { title: 'Leads Management', subtitle: 'Dashboard lengkap: peta interaktif, tabel data, kirim email & draft AI.' },
             'settings': { title: 'Konfigurasi Pengaturan', subtitle: 'Atur variabel keamanan akun dan kredensial model AI.' }
         };
 
@@ -1196,7 +1712,7 @@
 
                 // Load tab data jika diperlukan
                 if (tabId === 'leads') {
-                    loadDraftsTable();
+                    loadLeadsData();
                 } else if (tabId === 'settings') {
                     loadEnvConfig();
                 } else if (tabId === 'dashboard') {
@@ -1368,122 +1884,561 @@
             });
         }
 
-        // LOAD LEADS DRAFT TABLE
-        function loadDraftsTable() {
-            const tbody = document.getElementById('tbl-leads-body');
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;"><i class="fa-solid fa-spinner spinner" style="font-size: 20px;"></i> Memuat data draf...</td></tr>`;
-            
-            fetch('/api/drafts')
+        // ============================================================
+        // LEADS MANAGEMENT DASHBOARD
+        // ============================================================
+        let leadsData = [];        // All leads from API
+        let filteredLeads = [];    // After search/filter
+        let leadsMap = null;       // Leaflet map instance
+        let leadsMarkers = {};     // markers keyed by username
+        const PAGE_SIZE = 50;
+        let currentPage = 1;
+        let modalUsername = null;  // Currently open modal's lead username
+
+        // Helper: parse lat/lon from google_maps_url
+        function parseLatLon(gmapsUrl) {
+            if (!gmapsUrl) return null;
+            const m = gmapsUrl.match(/center=([\-0-9.]+),([\-0-9.]+)/);
+            if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]) };
+            return null;
+        }
+
+        // Helper: score color class
+        function scoreColorClass(score) {
+            if (score >= 70) return 'popup-score-high';
+            if (score >= 45) return 'popup-score-med';
+            return 'popup-score-low';
+        }
+
+        // Helper: priority badge class
+        function prioBadgeClass(prio) {
+            if (!prio) return 'badge-prio-low';
+            if (prio.includes('TINGGI')) return 'badge-prio-high';
+            if (prio.includes('MENENGAH') || prio.includes('SEDANG') || prio.includes('MED')) return 'badge-prio-med';
+            return 'badge-prio-low';
+        }
+
+        // Helper: status badge HTML
+        function statusBadgeHtml(status) {
+            if (status === 'sent') return `<span class="status-badge status-sent"><i class="fa-solid fa-check"></i> Terkirim</span>`;
+            if (status === 'failed') return `<span class="status-badge status-failed"><i class="fa-solid fa-xmark"></i> Gagal</span>`;
+            return `<span class="status-badge status-pending"><i class="fa-solid fa-clock"></i> Pending</span>`;
+        }
+
+        // Initialize Leaflet map
+        function initLeadsMap(leads) {
+            if (!leadsMap) {
+                leadsMap = L.map('leads-map', {
+                    center: [0, 0],
+                    zoom: 2,
+                    zoomControl: true,
+                });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19,
+                }).addTo(leadsMap);
+            }
+
+            // Clear existing markers
+            Object.values(leadsMarkers).forEach(m => leadsMap.removeLayer(m));
+            leadsMarkers = {};
+
+            const bounds = [];
+            let plotCount = 0;
+
+            leads.forEach(lead => {
+                const coords = parseLatLon(lead.google_maps_url);
+                if (!coords) return;
+
+                const score = parseInt(lead.lead_score || 0);
+                let color = '#64748b';
+                if (score >= 70) color = '#10b981';
+                else if (score >= 45) color = '#f59e0b';
+
+                const svgIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.8);box-shadow:0 2px 6px rgba(0,0,0,0.5);"></div>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7],
+                    popupAnchor: [0, -10],
+                });
+
+                const scoreClass = scoreColorClass(score);
+                const igUrl = lead.instagram_url && lead.instagram_url.startsWith('http') ? lead.instagram_url : null;
+
+                const popupHtml = `
+                    <div class="popup-name">${escapeHtml(lead.full_name || lead.username)}</div>
+                    <div class="popup-cat">${escapeHtml(lead.category || '')} · ${escapeHtml(lead.city || '')}, ${escapeHtml(lead.country_code || '')}</div>
+                    <div style="margin-top:6px;">Score: <span class="${scoreClass}">${score}</span></div>
+                    ${igUrl ? `<a href="${igUrl}" target="_blank" style="display:inline-block;margin-top:4px;color:#34d399;font-size:12px;text-decoration:none;"><i class="fa-brands fa-instagram"></i> IG Profile</a>` : ''}
+                `;
+
+                const marker = L.marker([coords.lat, coords.lon], { icon: svgIcon })
+                    .addTo(leadsMap)
+                    .bindPopup(popupHtml, { maxWidth: 220 });
+
+                marker.on('click', () => {
+                    // Highlight row in table
+                    highlightLeadRow(lead.username);
+                });
+
+                leadsMarkers[lead.username] = marker;
+                bounds.push([coords.lat, coords.lon]);
+                plotCount++;
+            });
+
+            if (bounds.length > 0) {
+                leadsMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+            }
+
+            document.getElementById('lbl-leads-map-count').innerText = `${plotCount} leads dipetakan`;
+        }
+
+        // Highlight a table row and pan map to marker
+        function highlightLeadRow(username) {
+            document.querySelectorAll('.leads-mgmt-table tr.highlighted').forEach(r => r.classList.remove('highlighted'));
+            const row = document.getElementById(`lead-row-${CSS.escape(username)}`);
+            if (row) {
+                row.classList.add('highlighted');
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // Pan map to a lead's marker
+        function panMapToLead(username) {
+            const marker = leadsMarkers[username];
+            if (marker && leadsMap) {
+                leadsMap.setView(marker.getLatLng(), 14, { animate: true });
+                marker.openPopup();
+            }
+        }
+
+        // Load all leads data from API
+        function loadLeadsData() {
+            const tbody = document.getElementById('tbl-leads-mgmt-body');
+            tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:40px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px;"></i><br><br>Memuat data leads...</td></tr>`;
+
+            fetch('/api/leads')
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('lbl-table-source').innerText = `File: ${data.file_name || '-'}`;
-                    if (data.status === 'empty' || !data.drafts || data.drafts.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;"><i class="fa-solid fa-folder-open" style="font-size: 24px; margin-bottom: 10px; display: block;"></i> Tidak ada draf data. Jalankan AI Generator terlebih dahulu.</td></tr>`;
-                        return;
-                    }
-                    
-                    let html = '';
-                    data.drafts.forEach((row, idx) => {
-                        const score = parseInt(row.lead_score || 0);
-                        let scoreClass = 'low';
-                        if (score >= 70) scoreClass = 'high';
-                        else if (score >= 50) scoreClass = 'medium';
-                        
-                        const isDummy = row.username.startsWith('osm_');
-                        const usernameClass = isDummy ? 'td-username dummy' : 'td-username';
-                        
-                        // Buat link Maps & IG
-                        let linksHtml = '';
-                        if (row.google_maps_url) {
-                            linksHtml += `<a href="${row.google_maps_url}" target="_blank" style="color: #f59e0b; font-size: 11px; margin-right: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Buka Lokasi Google Maps"><i class="fa-solid fa-map-location-dot"></i> Maps</a>`;
-                        }
-                        
-                        // Menangani render awal link Instagram
-                        const hasIg = row.instagram_url && row.instagram_url.startsWith('http');
-                        linksHtml += `<a href="${hasIg ? row.instagram_url : '#'}" class="ig-link-${idx}" target="_blank" style="color: #34d399; font-size: 11px; text-decoration: none; display: ${hasIg ? 'inline-flex' : 'none'}; align-items: center; gap: 4px;" title="Buka Profil Instagram"><i class="fa-brands fa-instagram"></i> Instagram</a>`;
+                    leadsData = data.leads || [];
 
-                        html += `
-                        <tr id="row-${idx}">
-                            <td>
-                                <strong>${row.full_name || 'No Name'}</strong>
-                                <div class="links-container-${idx}" style="margin-top: 6px; display: flex; align-items: center;">
-                                    ${linksHtml}
-                                </div>
-                            </td>
-                            <td>
-                                <input type="text" class="input-table-username ${usernameClass}" id="input-username-${idx}" value="${row.username}" oninput="updateIgLink(${idx}, this.value)">
-                            </td>
-                            <td><span class="td-score ${scoreClass}">${score}</span></td>
-                            <td>
-                                <textarea class="textarea-edit" id="textarea-msg-${idx}">${row.pesan_dm_rag || ''}</textarea>
-                            </td>
-                            <td style="text-align: center;">
-                                <button class="btn-table-save" onclick="saveTableRow('${row.username}', ${idx})" title="Simpan baris ini">
-                                    <i class="fa-solid fa-floppy-disk"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        `;
-                    });
-                    tbody.innerHTML = html;
+                    // Update file label
+                    const fileLabel = data.leads_file || '-';
+                    document.getElementById('lbl-leads-file-src').innerText = `File: ${fileLabel}`;
+
+                    // Compute stats
+                    const total = leadsData.length;
+                    const high = leadsData.filter(l => parseInt(l.lead_score || 0) >= 70).length;
+                    const withEmail = leadsData.filter(l => l.email && l.email.includes('@')).length;
+                    const igResolved = leadsData.filter(l => l.username && !l.username.startsWith('osm_')).length;
+                    const dmSent = leadsData.filter(l => l.dm_status === 'sent').length;
+                    const emailSent = leadsData.filter(l => l.email_status === 'sent').length;
+
+                    document.getElementById('ls-total').innerText = total;
+                    document.getElementById('ls-high').innerText = high;
+                    document.getElementById('ls-email').innerText = withEmail;
+                    document.getElementById('ls-ig').innerText = igResolved;
+                    document.getElementById('ls-dm-sent').innerText = dmSent;
+                    document.getElementById('ls-email-sent').innerText = emailSent;
+
+                    // Init / update map
+                    initLeadsMap(leadsData);
+
+                    // Render table
+                    currentPage = 1;
+                    filterAndRenderLeads();
                 })
                 .catch(err => {
-                    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">Gagal memuat tabel draf.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--danger-color);padding:40px;"><i class="fa-solid fa-triangle-exclamation"></i> Gagal memuat data leads.<br><small>${escapeHtml(String(err))}</small></td></tr>`;
                     console.error(err);
                 });
         }
 
-        // SAVE TABLE ROW DATA
-        function saveTableRow(oldUsername, idx) {
-            const newUsername = document.getElementById(`input-username-${idx}`).value.trim();
-            const message = document.getElementById(`textarea-msg-${idx}`).value;
-            
-            fetch('/api/drafts', {
+        // Filter and render current page of leads
+        function filterAndRenderLeads() {
+            const query = (document.getElementById('leads-search-input').value || '').toLowerCase();
+            const statusFilter = document.getElementById('leads-filter-status').value;
+            const draftFilter = document.getElementById('leads-filter-draft').value;
+            const emailFilter = document.getElementById('leads-filter-email').value;
+            const igFilter = document.getElementById('leads-filter-ig').value;
+            const phoneFilter = document.getElementById('leads-filter-phone').value;
+
+            filteredLeads = leadsData.filter(lead => {
+                // Text search
+                if (query) {
+                    const haystack = [lead.full_name, lead.username, lead.category, lead.email, lead.phone, lead.city].join(' ').toLowerCase();
+                    if (!haystack.includes(query)) return false;
+                }
+                // DM status filter
+                if (statusFilter === 'dm_sent' && lead.dm_status !== 'sent') return false;
+                if (statusFilter === 'dm_pending' && lead.dm_status !== 'pending') return false;
+                if (statusFilter === 'dm_failed' && lead.dm_status !== 'failed') return false;
+                // Draft filter
+                if (draftFilter === 'has_draft' && !(lead.pesan_dm_rag || '').trim()) return false;
+                if (draftFilter === 'no_draft' && (lead.pesan_dm_rag || '').trim()) return false;
+                // Email filter
+                if (emailFilter === 'has_email' && !(lead.email || '').includes('@')) return false;
+                if (emailFilter === 'no_email' && (lead.email || '').includes('@')) return false;
+                // IG filter
+                const isDummy = (lead.username || '').startsWith('osm_');
+                if (igFilter === 'has_ig' && isDummy) return false;
+                if (igFilter === 'dummy_ig' && !isDummy) return false;
+                // Phone filter
+                const hasPhone = !!(lead.phone || '').trim();
+                if (phoneFilter === 'has_phone' && !hasPhone) return false;
+                if (phoneFilter === 'no_phone' && hasPhone) return false;
+                return true;
+            });
+
+            renderLeadsTable();
+            renderPagination();
+        }
+
+        // Render one page of leads to the table
+        function renderLeadsTable() {
+            const tbody = document.getElementById('tbl-leads-mgmt-body');
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const page = filteredLeads.slice(start, start + PAGE_SIZE);
+
+            if (filteredLeads.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:40px;"><i class="fa-solid fa-folder-open" style="font-size:24px;display:block;margin-bottom:10px;"></i>Tidak ada leads yang cocok dengan filter ini.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            page.forEach((lead, i) => {
+                const globalIdx = start + i + 1;
+                const score = parseInt(lead.lead_score || 0);
+                const scoreClass = score >= 70 ? 'popup-score-high' : score >= 45 ? 'popup-score-med' : 'popup-score-low';
+
+                const prio = lead.prioritas || '';
+                const prioCls = prioBadgeClass(prio);
+
+                const hasEmail = lead.email && lead.email.includes('@');
+                const hasPhone = !!lead.phone;
+                const hasIg = lead.instagram_url && lead.instagram_url.startsWith('http');
+                const isDummy = (lead.username || '').startsWith('osm_');
+                const igInputClass = isDummy ? 'ig-username-input dummy' : 'ig-username-input';
+                const hasMaps = !!lead.google_maps_url;
+
+                const dmDraft = (lead.pesan_dm_rag || '').trim();
+                const emailDraft = (lead.pesan_email_rag || '').trim();
+
+                const dmDraftHtml = dmDraft
+                    ? `<span class="draft-preview has-draft" onclick="openDraftModal('${escapeHtml(lead.username).replace(/'/g,"\\'")}', 'dm')" title="${escapeHtml(dmDraft).replace(/"/g,'&quot;')}">${escapeHtml(dmDraft.slice(0,65))}${dmDraft.length>65?'…':''}</span>`
+                    : `<span class="draft-preview no-draft" onclick="openDraftModal('${escapeHtml(lead.username).replace(/'/g,"\\'")}', 'dm')">— Klik Generate AI</span>`;
+
+                const emailDraftHtml = emailDraft
+                    ? `<span class="draft-preview has-draft" onclick="openDraftModal('${escapeHtml(lead.username).replace(/'/g,"\\'")}', 'email')" title="${escapeHtml(emailDraft).replace(/"/g,'&quot;')}">${escapeHtml(emailDraft.slice(0,65))}${emailDraft.length>65?'…':''}</span>`
+                    : `<span class="draft-preview no-draft" onclick="openDraftModal('${escapeHtml(lead.username).replace(/'/g,"\\'")}', 'email')">— Belum ada draft email</span>`;
+
+                const usernameEsc = (lead.username || '').replace(/'/g, "\\'");
+
+                html += `
+                <tr id="lead-row-${escapeHtml(lead.username)}" onclick="panMapToLead('${usernameEsc}')">
+                    <td style="color:var(--text-muted);font-size:11px;">${globalIdx}</td>
+                    <td class="tbl-name">
+                        ${escapeHtml(lead.full_name || lead.username || '—')}
+                        <small>${escapeHtml(lead.city || '')}${lead.country_code ? ' · ' + escapeHtml(lead.country_code) : ''}</small>
+                    </td>
+                    <td><span class="badge-cat">${escapeHtml(lead.category || '—')}</span></td>
+                    <td><span class="${scoreClass}" style="font-weight:700;">${score}</span></td>
+                    <td><span class="badge-prio ${prioCls}">${escapeHtml(prio.replace(/[\[\]]/g,'') || '—')}</span></td>
+                    <td>${hasPhone ? `<span class="copy-field" onclick="copyToClipboard('${escapeHtml(lead.phone)}')" title="Klik untuk salin"><i class="fa-solid fa-copy"></i>${escapeHtml(lead.phone)}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td>${hasEmail ? `<span class="copy-field" onclick="copyToClipboard('${escapeHtml(lead.email)}')" title="Klik untuk salin"><i class="fa-solid fa-copy"></i>${escapeHtml(lead.email)}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td>
+                        <input type="text" class="${igInputClass}" id="ig-input-${globalIdx}" value="${escapeHtml(lead.username || '')}" onclick="event.stopPropagation()">
+                        ${hasIg ? `<a href="${lead.instagram_url}" target="_blank" class="icon-link icon-link-ig" style="margin-top:4px;display:inline-flex;" onclick="event.stopPropagation()" title="Buka IG"><i class="fa-brands fa-instagram"></i></a>` : ''}
+                    </td>
+                    <td>
+                        ${hasMaps ? `<a href="${lead.google_maps_url}" target="_blank" class="icon-link icon-link-maps" onclick="event.stopPropagation()" title="Buka Maps"><i class="fa-solid fa-map-location-dot"></i></a>` : '<span style="color:var(--text-muted)">—</span>'}
+                    </td>
+                    <td>${dmDraftHtml}</td>
+                    <td>${emailDraftHtml}</td>
+                    <td style="text-align:center;" id="dm-status-${globalIdx}">${statusBadgeHtml(lead.dm_status)}</td>
+                    <td style="text-align:center;" id="email-status-${globalIdx}">${statusBadgeHtml(lead.email_status)}</td>
+                    <td>
+                        <div class="action-btns" onclick="event.stopPropagation()">
+                            <button class="btn-act btn-act-save" title="Simpan username" onclick="saveLeadUsername('${usernameEsc}', ${globalIdx})"><i class="fa-solid fa-floppy-disk"></i></button>
+                            <button class="btn-act btn-act-gen" title="Generate AI Draft" onclick="generateDraftForLead('${usernameEsc}', ${globalIdx})"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+                            <button class="btn-act btn-act-dm-send" title="Kirim DM" onclick="sendDMToLead('${usernameEsc}', ${globalIdx})"><i class="fa-solid fa-paper-plane"></i></button>
+                            <button class="btn-act btn-act-email" title="Kirim Email" ${!hasEmail ? 'disabled' : ''} onclick="sendEmailToLead('${usernameEsc}', ${globalIdx})"><i class="fa-solid fa-envelope"></i></button>
+                            <button class="btn-act btn-act-dm" title="Buka/Edit Draft" onclick="openDraftModal('${usernameEsc}', 'dm')"><i class="fa-solid fa-pen-to-square"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // Render pagination buttons
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredLeads.length / PAGE_SIZE);
+            const pagDiv = document.getElementById('leads-pagination');
+            if (totalPages <= 1) { pagDiv.innerHTML = ''; return; }
+
+            let html = `<button class="btn-page" onclick="goToPage(${currentPage-1})" ${currentPage===1?'disabled':''}>← Prev</button>`;
+            html += `<span class="page-info">Halaman ${currentPage} / ${totalPages} &nbsp;(${filteredLeads.length} leads)</span>`;
+            html += `<button class="btn-page" onclick="goToPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>Next →</button>`;
+            pagDiv.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            const totalPages = Math.ceil(filteredLeads.length / PAGE_SIZE);
+            currentPage = Math.max(1, Math.min(page, totalPages));
+            renderLeadsTable();
+            renderPagination();
+            document.querySelector('.table-container').scrollTop = 0;
+        }
+
+        // Save username for a lead row
+        function saveLeadUsername(username, rowIdx) {
+            const newUsername = (document.getElementById(`ig-input-${rowIdx}`).value || '').trim().replace(/^@/, '');
+            fetch('/api/leads/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    old_username: oldUsername,
-                    new_username: newUsername,
-                    message: message
-                })
+                body: JSON.stringify({ old_username: username, new_username: newUsername })
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showToast("Baris draf berhasil diupdate!", "success");
-                    // Reload data to reflect change in future clicks
-                    loadDraftsTable();
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success') {
+                    showToast(`Username diperbarui!`, 'success');
+                    loadLeadsData();
                 } else {
-                    showToast("Gagal menyimpan: " + data.message, "error");
+                    showToast('Gagal menyimpan: ' + d.message, 'error');
+                }
+            })
+            .catch(() => showToast('Error sistem.', 'error'));
+        }
+
+        // Generate AI draft for a single lead (from table row)
+        function generateDraftForLead(username, rowIdx) {
+            const btn = document.querySelector(`#lead-row-${CSS.escape(username)} .btn-act-gen`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+
+            const lead = leadsData.find(l => l.username === username);
+            if (!lead) { showToast('Lead tidak ditemukan', 'error'); return; }
+
+            fetch('/api/leads/generate-draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(lead)
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>'; }
+                if (d.status === 'success') {
+                    showToast('Draft AI berhasil dibuat!', 'success');
+                    // Update in-memory data
+                    const idx = leadsData.findIndex(l => l.username === username);
+                    if (idx >= 0) leadsData[idx].pesan_dm_rag = d.draft;
+                    filterAndRenderLeads();
+                } else {
+                    showToast('Gagal generate: ' + d.message, 'error');
                 }
             })
             .catch(err => {
-                showToast("Terjadi kesalahan sistem.", "error");
-                console.error(err);
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>'; }
+                showToast('Error: ' + err, 'error');
             });
         }
 
-        // UPDATE INSTAGRAM LINK DYNAMICALLY
-        function updateIgLink(idx, username) {
-            const igLink = document.querySelector(`.ig-link-${idx}`);
-            const input = document.getElementById(`input-username-${idx}`);
-            
-            username = username.trim().replace(/^@/, '');
-            
-            if (username && !username.startsWith('osm_')) {
-                if (igLink) {
-                    igLink.href = `https://instagram.com/${username}`;
-                    igLink.style.display = 'inline-flex';
-                }
-                input.classList.remove('dummy');
-            } else {
-                if (igLink) {
-                    igLink.style.display = 'none';
-                    igLink.href = '#';
-                }
-                input.classList.add('dummy');
+        // Send email to a single lead
+        function sendEmailToLead(username, rowIdx) {
+            const lead = leadsData.find(l => l.username === username);
+            if (!lead || !lead.email) { showToast('Lead tidak punya email.', 'error'); return; }
+            if (!(lead.pesan_dm_rag || '').trim() && !(lead.pesan_email_rag || '').trim()) {
+                showToast('Draf pesan kosong. Generate atau isi draft terlebih dahulu.', 'error');
+                return;
             }
+
+            const btn = document.querySelector(`#lead-row-${CSS.escape(username)} .btn-act-email`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+
+            const message = (lead.pesan_email_rag || lead.pesan_dm_rag || '').trim();
+            fetch('/api/leads/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: lead.username, email: lead.email, full_name: lead.full_name, message })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-envelope"></i>'; }
+                if (d.status === 'sent') {
+                    showToast('Email berhasil dikirim ke ' + lead.email, 'success');
+                    // Update status in memory + re-render
+                    const idx = leadsData.findIndex(l => l.username === username);
+                    if (idx >= 0) leadsData[idx].email_status = 'sent';
+                    const statusCell = document.getElementById(`email-status-${rowIdx}`);
+                    if (statusCell) statusCell.innerHTML = statusBadgeHtml('sent');
+                } else {
+                    showToast('Gagal mengirim: ' + d.message, 'error');
+                    const idx = leadsData.findIndex(l => l.username === username);
+                    if (idx >= 0) leadsData[idx].email_status = 'failed';
+                    const statusCell = document.getElementById(`email-status-${rowIdx}`);
+                    if (statusCell) statusCell.innerHTML = statusBadgeHtml('failed');
+                }
+            })
+            .catch(err => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-envelope"></i>'; }
+                showToast('Error sistem: ' + err, 'error');
+            });
         }
+
+        // Send DM to a single lead
+        function sendDMToLead(username, rowIdx) {
+            const lead = leadsData.find(l => l.username === username);
+            if (!lead) { showToast('Lead tidak ditemukan.', 'error'); return; }
+            if (!(lead.pesan_dm_rag || '').trim()) {
+                showToast('Draf pesan DM kosong. Generate draft terlebih dahulu.', 'error');
+                return;
+            }
+
+            const btn = document.querySelector(`#lead-row-${CSS.escape(username)} .btn-act-dm-send`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+
+            showToast('Mengirim DM ke @' + username + '...', 'info');
+
+            fetch('/api/leads/send-dm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: lead.username, message: lead.pesan_dm_rag.trim() })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>'; }
+                if (d.status === 'sent') {
+                    showToast('DM berhasil dikirim ke @' + username, 'success');
+                    // Update status in memory + re-render
+                    const idx = leadsData.findIndex(l => l.username === username);
+                    if (idx >= 0) leadsData[idx].dm_status = 'sent';
+                    const statusCell = document.getElementById(`dm-status-${rowIdx}`);
+                    if (statusCell) statusCell.innerHTML = statusBadgeHtml('sent');
+                } else {
+                    showToast('Gagal mengirim DM: ' + d.message, 'error');
+                    const idx = leadsData.findIndex(l => l.username === username);
+                    if (idx >= 0) leadsData[idx].dm_status = 'failed';
+                    const statusCell = document.getElementById(`dm-status-${rowIdx}`);
+                    if (statusCell) statusCell.innerHTML = statusBadgeHtml('failed');
+                }
+            })
+            .catch(err => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>'; }
+                showToast('Error sistem: ' + err, 'error');
+            });
+        }
+
+        // Copy text to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => showToast(`"${text}" disalin!`, 'success'))
+                .catch(() => showToast('Gagal menyalin.', 'error'));
+        }
+
+        // ============================================================
+        // DRAFT EDIT MODAL
+        // ============================================================
+        let modalActiveTab = 'dm';
+
+        function openDraftModal(username, channel) {
+            modalUsername = username;
+            modalActiveTab = channel || 'dm';
+            const lead = leadsData.find(l => l.username === username);
+            if (!lead) { showToast('Lead tidak ditemukan.', 'error'); return; }
+
+            document.getElementById('modal-lead-name').innerText = `Edit Draft — ${lead.full_name || username}`;
+            document.getElementById('modal-dm-text').value = lead.pesan_dm_rag || '';
+            document.getElementById('modal-email-text').value = lead.pesan_email_rag || '';
+
+            switchModalTab(modalActiveTab);
+            document.getElementById('draft-modal').classList.add('open');
+        }
+
+        function closeDraftModal() {
+            document.getElementById('draft-modal').classList.remove('open');
+            modalUsername = null;
+        }
+
+        function switchModalTab(tab) {
+            modalActiveTab = tab;
+            document.getElementById('modal-tab-dm-content').style.display = tab === 'dm' ? 'block' : 'none';
+            document.getElementById('modal-tab-email-content').style.display = tab === 'email' ? 'block' : 'none';
+            document.getElementById('modal-tab-dm').classList.toggle('active', tab === 'dm');
+            document.getElementById('modal-tab-email').classList.toggle('active', tab === 'email');
+        }
+
+        function saveDraftFromModal() {
+            if (!modalUsername) return;
+            const dmText = document.getElementById('modal-dm-text').value;
+            const emailText = document.getElementById('modal-email-text').value;
+
+            fetch('/api/leads/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_username: modalUsername, new_username: modalUsername, pesan_dm_rag: dmText, pesan_email_rag: emailText })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success') {
+                    // Update in-memory
+                    const idx = leadsData.findIndex(l => l.username === modalUsername);
+                    if (idx >= 0) {
+                        leadsData[idx].pesan_dm_rag = dmText;
+                        leadsData[idx].pesan_email_rag = emailText;
+                    }
+                    showToast('Draft berhasil disimpan!', 'success');
+                    closeDraftModal();
+                    filterAndRenderLeads();
+                } else {
+                    showToast('Gagal menyimpan: ' + d.message, 'error');
+                }
+            })
+            .catch(() => showToast('Error sistem.', 'error'));
+        }
+
+        function generateDraftFromModal() {
+            if (!modalUsername) return;
+            const lead = leadsData.find(l => l.username === modalUsername);
+            if (!lead) return;
+
+            showToast('Generating AI draft...', 'info');
+            fetch('/api/leads/generate-draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(lead)
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success') {
+                    document.getElementById('modal-dm-text').value = d.draft;
+                    const idx = leadsData.findIndex(l => l.username === modalUsername);
+                    if (idx >= 0) leadsData[idx].pesan_dm_rag = d.draft;
+                    showToast('Draft AI berhasil dibuat!', 'success');
+                } else {
+                    showToast('Gagal generate: ' + d.message, 'error');
+                }
+            })
+            .catch(err => showToast('Error: ' + err, 'error'));
+        }
+
+        function copyEmailFromDM() {
+            const dmText = document.getElementById('modal-dm-text').value;
+            document.getElementById('modal-email-text').value = dmText;
+            switchModalTab('email');
+            showToast('Draft DM disalin ke Email Draft!', 'success');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('draft-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeDraftModal();
+        });
+
+        // ============================================================
+        // OLD loadDraftsTable stub — kept for backward compatibility
+        // ============================================================
+        function loadDraftsTable() { loadLeadsData(); }
+
 
         // COPY TERMINAL LOGS TO CLIPBOARD
         function copyTerminalLogs() {

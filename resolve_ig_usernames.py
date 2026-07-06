@@ -6,6 +6,8 @@ import os
 import sys
 import re
 import csv
+import time
+import random
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
@@ -30,8 +32,26 @@ log = logging.getLogger("ig-resolver")
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
-INPUT_FILE = str(BASE_DIR / "output" / "rag_dm_drafts.csv")
 OUTPUT_FILE = str(BASE_DIR / "output" / "rag_dm_drafts_resolved.csv")
+
+def find_input_file() -> str:
+    """Mencari file input terbaik secara dinamis."""
+    candidates = [
+        "output/rag_dm_drafts_resolved.csv",
+        "output/rag_dm_drafts.csv",
+    ]
+    for c in candidates:
+        path = BASE_DIR / c
+        if path.exists():
+            return str(path)
+            
+    # Fallback to latest raw leads from scraper
+    import glob
+    raw_files = sorted(glob.glob(str(BASE_DIR / "output" / "umkm_leads_*.csv")), reverse=True)
+    if raw_files:
+        return raw_files[0]
+        
+    return ""
 
 def verify_name_overlap(business_name: str, ig_user) -> bool:
     """Check if the matched Instagram account name or username has some overlap with the business name to prevent mismatching."""
@@ -44,7 +64,7 @@ def verify_name_overlap(business_name: str, ig_user) -> bool:
     clean_biz_words = biz_words - stop_words
     if not clean_biz_words:
         clean_biz_words = biz_words  # fallback
-
+ 
     # Clean and split IG username and full name
     ig_words = set(re.findall(r'[a-zA-Z0-9]+', ig_user.username.lower()))
     if ig_user.full_name:
@@ -55,11 +75,74 @@ def verify_name_overlap(business_name: str, ig_user) -> bool:
 
 
 def main():
-    if not os.path.exists(INPUT_FILE):
-        log.error(f"File input tidak ditemukan di: {INPUT_FILE}")
+    # 1. Cari raw leads CSV terbaru sebagai master list
+    import glob
+    raw_files = sorted(glob.glob(str(BASE_DIR / "output" / "umkm_leads_*.csv")), reverse=True)
+    if not raw_files:
+        log.error("Tidak ditemukan file raw leads (umkm_leads_*.csv). Harap jalankan Scraper terlebih dahulu.")
         return
+    master_file = raw_files[0]
+    log.info(f"Menggunakan master file leads: {master_file}")
 
-    username = os.getenv("IG_USERNAME")
+    # Membaca master leads
+    rows = []
+    fieldnames = []
+    with open(master_file, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fieldnames = list(reader.fieldnames or [])
+        for row in reader:
+            rows.append(dict(row))
+
+    # 2. Cari data lama (resolved / drafts) untuk dioverlay agar tidak kehilangan progress/draft
+    existing_data = {}
+    overlay_candidates = [
+        BASE_DIR / "output" / "rag_dm_drafts_resolved.csv",
+        BASE_DIR / "output" / "rag_dm_drafts.csv"
+    ]
+    for candidate in overlay_candidates:
+        if candidate.exists():
+            log.info(f"Menemukan file data lama untuk overlay: {candidate}")
+            try:
+                with open(candidate, "r", encoding="utf-8-sig") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        key = row.get("username") or row.get("full_name")
+                        if key:
+                            existing_data[key] = dict(row)
+                break
+            except Exception as e:
+                log.warning(f"Gagal membaca file overlay {candidate}: {e}")
+
+    # Pastikan kolom-kolom baru ada di fieldnames
+    for col in ["instagram_url", "pesan_dm_rag", "pesan_email_rag"]:
+        if col not in fieldnames:
+            fieldnames.append(col)
+
+    for row in rows:
+        # Isi nilai default
+        for col in ["instagram_url", "pesan_dm_rag", "pesan_email_rag"]:
+            row.setdefault(col, "")
+            
+        username = row.get("username", "")
+        fullname = row.get("full_name", "")
+        
+        # Overlay data jika ada kecocokan
+        old_row = existing_data.get(username) or existing_data.get(fullname)
+        if old_row:
+            if old_row.get("username") and not old_row["username"].startswith("osm_"):
+                row["username"] = old_row["username"]
+            if old_row.get("instagram_url"):
+                row["instagram_url"] = old_row["instagram_url"]
+            if old_row.get("pesan_dm_rag"):
+                row["pesan_dm_rag"] = old_row["pesan_dm_rag"]
+            if old_row.get("pesan_email_rag"):
+                row["pesan_email_rag"] = old_row["pesan_email_rag"]
+            if old_row.get("email") and not row.get("email"):
+                row["email"] = old_row["email"]
+            if old_row.get("phone") and not row.get("phone"):
+                row["phone"] = old_row["phone"]
+
+    username_ig = os.getenv("IG_USERNAME")
     sessionid = os.getenv("IG_SESSIONID")
     
     if not sessionid:
@@ -71,22 +154,11 @@ def main():
     log.info("Menghubungkan ke Instagram via Session ID...")
     try:
         cl.login_by_sessionid(sessionid)
-        cl.username = username or "user"
+        cl.username = username_ig or "user"
         log.info("Login berhasil!")
     except Exception as e:
         log.error(f"Gagal login: {e}")
         return
-
-    # Membaca draf
-    rows = []
-    with open(INPUT_FILE, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames
-        # Ensure instagram_url is in fieldnames
-        if "instagram_url" not in fieldnames:
-            fieldnames = list(fieldnames) + ["instagram_url"]
-        for row in reader:
-            rows.append(row)
 
     log.info(f"Memproses {len(rows)} data UMKM...")
     resolved_count = 0
