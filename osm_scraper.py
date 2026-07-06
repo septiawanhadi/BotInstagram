@@ -133,11 +133,11 @@ def fetch_osm_data(city: str) -> tuple[list, str]:
         "https://overpass.nchc.org.tw/api/interpreter"      # Backup 4 (Taiwan)
     ]
     
-    # Header yang menyerupai browser Chrome asli untuk melewati proteksi bot filter
+    # Header deskriptif yang menyertakan kontak sesuai anjuran kebijakan Overpass API untuk menghindari blokir 406
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "User-Agent": "BotInstagramUMKMScraper/1.0 (contact: contact@dripcode.site)",
+        "Referer": "https://dripcode.site",
+        "Accept": "application/json"
     }
     
     log.info(f"Mengirim query ke OpenStreetMap Overpass API untuk Kota: {city}...")
@@ -159,6 +159,45 @@ def fetch_osm_data(city: str) -> tuple[list, str]:
             
     log.error("Semua server alternatif Overpass API gagal diakses atau memblokir request.")
     return [], country_code
+
+
+def fetch_nominatim_fallback(city: str) -> list:
+    """Fallback pencarian UMKM menggunakan Nominatim Search API (Leaflet search engine) jika Overpass API down."""
+    log.info(f"Memulai pencarian fallback menggunakan Nominatim Search API untuk Kota: {city}...")
+    headers = {
+        "User-Agent": "BotInstagramUMKMScraper/1.0 (contact: contact@dripcode.site)",
+        "Referer": "https://dripcode.site"
+    }
+    
+    # Mapping kata kunci dari kategori bisnis OSM
+    keywords = [
+        "cafe", "restaurant", "bakery", "clothes", "boutique", 
+        "shoes", "beauty salon", "cosmetics", "hairdresser", "laundry"
+    ]
+    
+    raw_results = []
+    seen_ids = set()
+    
+    for kw in keywords:
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(kw)}+in+{urllib.parse.quote(city)}&format=json&limit=30&addressdetails=1"
+        try:
+            log.info(f"Nominatim Search: Mencari '{kw}' di {city}...")
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                for item in data:
+                    osm_id = item.get("osm_id")
+                    if osm_id and osm_id not in seen_ids:
+                        seen_ids.add(osm_id)
+                        raw_results.append(item)
+            # Delay 1 detik sesuai usage policy Nominatim untuk menghindari pemblokiran
+            time.sleep(1)
+        except Exception as e:
+            log.warning(f"Gagal mencari '{kw}' di Nominatim: {e}")
+            
+    log.info(f"Nominatim Search selesai. Ditemukan {len(raw_results)} elemen mentah.")
+    return raw_results
+
 
 
 # ============================================================
@@ -298,6 +337,8 @@ def process_osm_elements(elements: list, city_name: str, country_code: str = "")
             "last_post_days_ago": 0,
             "instagram_url": instagram_url,
             "google_maps_url": google_maps_url,
+            "latitude": lat or "",
+            "longitude": lon or "",
             "scraped_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "country_code": country_code,
             "city": city_name,
@@ -351,10 +392,42 @@ def run_osm_scraper(city: str):
     
     elements, country_code = fetch_osm_data(city)
     
+    # Fallback to Nominatim Search API (Leaflet search engine) if Overpass failed
     if not elements:
-        print("\n[INFO] No data found or API is busy.")
-        return
-        
+        raw_items = fetch_nominatim_fallback(city)
+        if raw_items:
+            print("\n[INFO] Menggunakan data hasil pencarian Nominatim (Leaflet API) sebagai fallback.")
+            elements = []
+            for item in raw_items:
+                # Convert Nominatim format to Overpass format
+                addr = item.get("address", {})
+                place_type = item.get("type", "")
+                name = addr.get(place_type) or addr.get("name") or item.get("display_name").split(",")[0]
+                
+                el = {
+                    "id": item.get("osm_id"),
+                    "lat": float(item.get("lat")) if item.get("lat") else None,
+                    "lon": float(item.get("lon")) if item.get("lon") else None,
+                    "tags": {
+                        "name": name,
+                        "website": "",
+                        "phone": "",
+                        "email": "",
+                        "addr:street": addr.get("road", ""),
+                        "addr:housenumber": addr.get("house_number", ""),
+                        "addr:city": addr.get("city") or addr.get("town") or city,
+                        "shop": place_type if item.get("class") == "shop" else "",
+                        "amenity": place_type if item.get("class") == "amenity" else ""
+                    }
+                }
+                elements.append(el)
+            # Default country code to ID if not geocoded
+            if not country_code:
+                country_code = "ID"
+        else:
+            print("\n[INFO] No data found or API is busy.")
+            return
+            
     leads = process_osm_elements(elements, city, country_code)
     
     if not leads:
@@ -388,8 +461,9 @@ def run_osm_scraper(city: str):
         "", "username", "full_name", "biography", "external_url", 
         "follower_count", "following_count", "media_count", "phone", "email", 
         "category", "is_business", "is_professional", "has_website", 
-        "website_type", "last_post_days_ago", "instagram_url", "google_maps_url", "scraped_at", 
-        "country_code", "city", "lead_score", "prioritas"
+        "website_type", "last_post_days_ago", "instagram_url", "google_maps_url", 
+        "latitude", "longitude", "scraped_at", "country_code", "city", 
+        "lead_score", "prioritas"
     ]
     
     with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:

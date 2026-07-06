@@ -509,17 +509,11 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
             if not ig_url and not uname.startswith("osm_"):
                 ig_url = f"https://instagram.com/{uname}"
 
-            drafts_created.append({
-                "username": uname,
-                "full_name": lead.get("full_name", ""),
-                "lead_score": lead.get("lead_score", ""),
-                "phone": lead.get("phone", ""),
-                "email": lead.get("email", ""),
-                "instagram_url": ig_url,
-                "google_maps_url": lead.get("google_maps_url", ""),
-                "pesan_dm_rag": dm_text,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
+            row_data = lead.copy()
+            row_data["pesan_dm_rag"] = dm_text
+            row_data["instagram_url"] = ig_url
+            row_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            drafts_created.append(row_data)
 
             if generate_only:
                 log_result(uname, "draft_created", dm_text)
