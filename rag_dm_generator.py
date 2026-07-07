@@ -301,6 +301,30 @@ def generate_personalized_dm(lead: dict) -> str:
                 "bypass-tunnel-reminder": "true"
             }
         )
+    elif ai_type == "ninerouter" or ai_type == "9router":
+        # Gunakan 9Router local AI gateway (OpenAI-compatible)
+        try:
+            from langchain_openai import ChatOpenAI
+        except ImportError:
+            log.info("Menginstall langchain-openai untuk koneksi 9Router...")
+            import subprocess
+            subprocess.run(["pip", "install", "langchain-openai"], check=True)
+            from langchain_openai import ChatOpenAI
+            
+        nr_url = os.getenv("NINEROUTER_URL", "http://localhost:20128/v1").strip()
+        if not nr_url.endswith("/v1") and not nr_url.endswith("/v1/"):
+            nr_url = nr_url.rstrip("/") + "/v1"
+            
+        nr_model = os.getenv("NINEROUTER_MODEL", "9router")
+        nr_key = os.getenv("NINEROUTER_API_KEY", "sk-9router")
+        
+        log.info(f"Menggunakan 9Router: {nr_model} ({nr_url})")
+        llm = ChatOpenAI(
+            base_url=nr_url,
+            api_key=nr_key,
+            model=nr_model,
+            temperature=0.8
+        )
     elif ai_type == "openrouter":
         # Gunakan OpenRouter API
         try:

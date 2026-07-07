@@ -1361,9 +1361,6 @@
                         <span>Virtual Terminal Terminal Console Output</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 15px;">
-                        <button class="btn" id="btn-copy-logs" style="padding: 6px 12px; font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); box-shadow: none;" onclick="copyTerminalLogs()">
-                            <i class="fa-solid fa-copy"></i> Salin Logs
-                        </button>
                         <div class="checkbox-group" style="margin-top: 0;">
                             <input type="checkbox" id="chk-autoscroll" checked>
                             <label for="chk-autoscroll" style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Autoscroll</label>
@@ -1567,6 +1564,7 @@
                                     <option value="cloud">Google Gemini (Cloud API)</option>
                                     <option value="openrouter">OpenRouter API (Llama/Gemma)</option>
                                     <option value="local">Ollama LLM (Lokal/Offline)</option>
+                                    <option value="ninerouter">9Router (Local AI Gateway)</option>
                                 </select>
                             </div>
 
@@ -1604,6 +1602,24 @@
                                 <div class="input-group">
                                     <label for="cfg-ollama-model">Model Ollama</label>
                                     <input type="text" id="cfg-ollama-model" class="input-field" placeholder="gemma4:e4b">
+                                </div>
+                            </div>
+
+                            <!-- 9Router Config fields -->
+                            <div class="ai-fields" id="fields-ninerouter" style="display: none;">
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-nr-url">URL Server 9Router</label>
+                                    <input type="text" id="cfg-nr-url" class="input-field" placeholder="http://localhost:20128/v1">
+                                    <span class="input-hint">Default 9Router local gateway adalah http://localhost:20128/v1</span>
+                                </div>
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="cfg-nr-model">Model 9Router</label>
+                                    <input type="text" id="cfg-nr-model" class="input-field" placeholder="9router">
+                                    <span class="input-hint">Nama kombinasi/model yang dikonfigurasi di 9Router (default: 9router)</span>
+                                </div>
+                                <div class="input-group">
+                                    <label for="cfg-nr-key">9Router API Key (Opsional)</label>
+                                    <input type="password" id="cfg-nr-key" class="input-field" placeholder="sk-9router">
                                 </div>
                             </div>
                         </div>
@@ -1779,6 +1795,8 @@
                 document.getElementById('fields-openrouter').style.display = 'block';
             } else if (aiType === 'local') {
                 document.getElementById('fields-ollama').style.display = 'block';
+            } else if (aiType === 'ninerouter') {
+                document.getElementById('fields-ninerouter').style.display = 'block';
             }
         }
 
@@ -1814,6 +1832,10 @@
                     
                     document.getElementById('cfg-ollama-url').value = data.LOCAL_LLM_URL || 'http://localhost:11434/v1';
                     document.getElementById('cfg-ollama-model').value = data.LOCAL_LLM_MODEL || 'gemma4:e4b';
+                    
+                    document.getElementById('cfg-nr-url').value = data.NINEROUTER_URL || 'http://localhost:20128/v1';
+                    document.getElementById('cfg-nr-model').value = data.NINEROUTER_MODEL || '9router';
+                    document.getElementById('cfg-nr-key').value = data.NINEROUTER_API_KEY || '';
                     
                     document.getElementById('cfg-smtp-host').value = data.SMTP_HOST || 'smtp.gmail.com';
                     document.getElementById('cfg-smtp-port').value = data.SMTP_PORT || '587';
@@ -1852,6 +1874,9 @@
                 OPENROUTER_MODEL: document.getElementById('cfg-or-model').value.trim(),
                 LOCAL_LLM_URL: document.getElementById('cfg-ollama-url').value.trim(),
                 LOCAL_LLM_MODEL: document.getElementById('cfg-ollama-model').value.trim(),
+                NINEROUTER_URL: document.getElementById('cfg-nr-url').value.trim(),
+                NINEROUTER_MODEL: document.getElementById('cfg-nr-model').value.trim(),
+                NINEROUTER_API_KEY: document.getElementById('cfg-nr-key').value.trim(),
                 EMAIL_SERVICE_TYPE: document.getElementById('cfg-email-service').value,
                 HOSTINGER_API_TOKEN: document.getElementById('cfg-hostinger-token').value.trim(),
                 SMTP_HOST: document.getElementById('cfg-smtp-host').value.trim(),
