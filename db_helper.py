@@ -11,6 +11,9 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("db_helper")
 
 CRED_PATH = Path("firebase-credentials.json")
+if not CRED_PATH.exists():
+    CRED_PATH = Path("firebase-credentials.json.json")
+
 db_client = None
 use_firebase = False
 
