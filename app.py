@@ -791,15 +791,15 @@ def leads_save_row():
     except Exception as e:
         return jsonify({"status": "error", "message": f"Gagal menyimpan: {e}"}), 500
 
-
 if __name__ == "__main__":
     # Buat direktori output jika belum ada
     Path("output").mkdir(exist_ok=True)
     
+    # Jalankan server
+    port = int(os.environ.get("PORT", 5000))
     print("=======================================================")
     print("  UMKM SCRAPER & RAG BOT DASHBOARD RUNNING")
-    print("  Buka di browser: http://localhost:5000")
+    print(f"  Buka di browser: http://localhost:{port}")
     print("=======================================================")
     
-    # Jalankan server
-    app.run(host="localhost", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)
