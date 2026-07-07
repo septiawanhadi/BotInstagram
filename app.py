@@ -809,4 +809,4 @@ if __name__ == "__main__":
     print(f"  Buka di browser: http://localhost:{port}")
     print("=======================================================")
     
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)
