@@ -453,28 +453,13 @@ def run_osm_scraper(city: str):
         json.dump(leads, f, ensure_ascii=False, indent=2)
     print(f"Data JSON disimpan ke: {json_filename}")
         
-    # 2. Simpan Data Leads Matang ke CSV
-    csv_filename = output_dir / f"umkm_leads_{timestamp}.csv"
-    
-    # Header format CSV leads dengan index kolom pertama kosong sesuai struktur yang dibaca generator
-    fieldnames = [
-        "", "username", "full_name", "biography", "external_url", 
-        "follower_count", "following_count", "media_count", "phone", "email", 
-        "category", "is_business", "is_professional", "has_website", 
-        "website_type", "last_post_days_ago", "instagram_url", "google_maps_url", 
-        "latitude", "longitude", "scraped_at", "country_code", "city", 
-        "lead_score", "prioritas"
-    ]
-    
-    with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for idx, lead in enumerate(leads, 1):
-            row_data = lead.copy()
-            row_data[""] = idx # Kolom index pertama
-            writer.writerow(row_data)
-            
-    print(f"Data CSV Leads disimpan ke: {csv_filename}")
+    # 2. Simpan Data Leads Matang ke db_helper (Firebase Firestore atau Fallback Lokal CSV)
+    try:
+        import db_helper
+        db_helper.save_leads(leads, city)
+    except Exception as e:
+        print(f"[WARNING] Gagal menyimpan data leads via db_helper: {e}")
+        
     print(f"\nCountry detected: {country_code or 'Unknown'}")
     print("\nLangkah selanjutnya:")
     print("  Jalankan RAG AI untuk generate draf pesan penawaran di dashboard web!")

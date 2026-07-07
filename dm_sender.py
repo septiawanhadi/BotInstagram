@@ -113,35 +113,43 @@ def load_sent_usernames() -> set:
     return sent
 
 
-def log_dm_result(username: str, status: str, message_preview: str = ""):
-    """Catat hasil pengiriman DM ke file log."""
-    Path("output").mkdir(exist_ok=True)
-    file_exists = Path(TRACKING_FILE).exists()
-
-    with open(TRACKING_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["timestamp", "username", "status", "message_preview"])
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow({
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "username": username,
-            "status": status,
-            "message_preview": message_preview[:80] if message_preview else "",
-        })
+def log_dm_result(username: str, status: str, message_preview: str = "", city: str = "Ciwidey", business_name: str = ""):
+    """Catat hasil pengiriman DM ke db_helper."""
+    import db_helper
+    # Simpan log ke database / CSV log
+    db_helper.save_campaign_log("dm", username, status, message_preview[:200])
+    
+    # Update status draf
+    status_val = "belum_terkirim"
+    if status == "sent":
+        status_val = "sent"
+    elif status == "failed":
+        status_val = "failed"
+    elif status == "skipped_dummy":
+        status_val = "skipped"
+        
+    if not business_name:
+        business_name = username
+        
+    db_helper.update_draft_status(city, business_name, "dm", status_val)
 
 
 def load_leads(target_file: str = "", min_score: int = 60) -> list[dict]:
-    if not target_file:
-        target_file = find_latest_leads_file()
-    path_obj = Path(target_file)
-    if not path_obj.is_absolute():
-        target_file = str(BASE_DIR / target_file)
-    if not os.path.exists(target_file):
-        raise FileNotFoundError(
-            f"Tidak ditemukan file leads di: {target_file}"
-        )
-
-    log.info(f"Membaca leads dari: {target_file}")
+    import db_helper
+    log.info("Membaca leads via db_helper...")
+    raw_leads = db_helper.get_drafts()
+    if not raw_leads:
+        raw_leads = db_helper.get_leads()
+        
+    leads = []
+    for row in raw_leads:
+        try:
+            score = int(row.get("lead_score", row.get("score", 0)) or 0)
+            if score >= min_score:
+                leads.append(row)
+        except (ValueError, TypeError):
+            continue
+    return leads
 
     leads = []
     with open(target_file, "r", encoding="utf-8-sig") as f:
@@ -329,12 +337,14 @@ def run_dm_campaign(
     print()
     for i, lead in enumerate(to_send, 1):
         username = lead.get("username", "")
+        city = lead.get("city", "Ciwidey")
+        business_name = lead.get("full_name", lead.get("business_name", username))
         
         # Cek jika username menggunakan format OSM dummy
         if username.startswith("osm_"):
             print(f"[{i}/{len(to_send)}] @{username} (DILEWATI)")
             print(f"  [INFO] Username dummy dari OpenStreetMap dideteksi. Pengiriman dilewati.")
-            log_dm_result(username, "skipped_dummy", "Username dummy OSM dilewati.")
+            log_dm_result(username, "skipped_dummy", "Username dummy OSM dilewati.", city, business_name)
             skipped_count += 1
             print("-" * 40)
             continue
@@ -346,7 +356,7 @@ def run_dm_campaign(
         else:
             message = build_message(lead)
             
-        score = lead.get("lead_score", "?")
+        score = lead.get("lead_score", lead.get("score", "?"))
         followers = int(lead.get("follower_count", 0) or 0)
 
         print(f"[{i}/{len(to_send)}] @{username} (score: {score}, {followers:,} followers)")
@@ -354,7 +364,7 @@ def run_dm_campaign(
 
         if test_mode:
             print("  [TEST] Pesan TIDAK dikirim (mode preview)")
-            log_dm_result(username, "test_preview", message)
+            log_dm_result(username, "test_preview", message, city, business_name)
             time.sleep(0.5)
             print("-" * 40)
             continue
@@ -364,11 +374,11 @@ def run_dm_campaign(
 
         if success:
             print(f"  [OK] DM terkirim!")
-            log_dm_result(username, "sent", message)
+            log_dm_result(username, "sent", message, city, business_name)
             sent_count += 1
         else:
             print(f"  [GAGAL] DM tidak terkirim")
-            log_dm_result(username, "failed", message)
+            log_dm_result(username, "failed", message, city, business_name)
             failed_count += 1
 
         # Delay random antar DM

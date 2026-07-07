@@ -75,51 +75,23 @@ def verify_name_overlap(business_name: str, ig_user) -> bool:
 
 
 def main():
-    # 1. Cari raw leads CSV terbaru sebagai master list
-    import glob
-    raw_files = sorted(glob.glob(str(BASE_DIR / "output" / "umkm_leads_*.csv")), reverse=True)
-    if not raw_files:
-        log.error("Tidak ditemukan file raw leads (umkm_leads_*.csv). Harap jalankan Scraper terlebih dahulu.")
-        return
-    master_file = raw_files[0]
-    log.info(f"Menggunakan master file leads: {master_file}")
-
-    # Membaca master leads
-    rows = []
-    fieldnames = []
-    with open(master_file, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        fieldnames = list(reader.fieldnames or [])
-        for row in reader:
-            rows.append(dict(row))
-
-    # 2. Cari data lama (resolved / drafts) untuk dioverlay agar tidak kehilangan progress/draft
-    existing_data = {}
-    overlay_candidates = [
-        BASE_DIR / "output" / "rag_dm_drafts_resolved.csv",
-        BASE_DIR / "output" / "rag_dm_drafts.csv"
-    ]
-    for candidate in overlay_candidates:
-        if candidate.exists():
-            log.info(f"Menemukan file data lama untuk overlay: {candidate}")
-            try:
-                with open(candidate, "r", encoding="utf-8-sig") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        key = row.get("username") or row.get("full_name")
-                        if key:
-                            existing_data[key] = dict(row)
+    import db_helper
+    
+    log.info("Memuat data leads dari db_helper...")
+    rows = db_helper.get_leads()
+    
+    # Tentukan kota default
+    city = "Ciwidey"
+    if rows:
+        for r in rows:
+            if r.get("city"):
+                city = r.get("city")
                 break
-            except Exception as e:
-                log.warning(f"Gagal membaca file overlay {candidate}: {e}")
+                
+    log.info(f"Menggunakan data leads kota: {city} (Jumlah: {len(rows)})")
 
-    # Pastikan kolom-kolom baru ada di fieldnames
-    for col in ["instagram_url", "pesan_dm_rag", "pesan_email_rag"]:
-        if col not in fieldnames:
-            fieldnames.append(col)
-
+    # Pastikan kolom-kolom baru ada di baris data
     for row in rows:
-        # Isi nilai default
         for col in ["instagram_url", "pesan_dm_rag", "pesan_email_rag"]:
             row.setdefault(col, "")
             
@@ -252,28 +224,23 @@ def main():
             delay = random.randint(5, 9)
             time.sleep(delay)
 
-            # Simpan progress secara bertahap (incremental autosave) agar aman jika laptop mati/mati lampu mid-way
+            # Simpan progress secara bertahap (incremental autosave)
             try:
-                with open(OUTPUT_FILE, "w", newline="", encoding="utf-8-sig") as f:
-                    writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-                    writer.writeheader()
-                    writer.writerows(rows)
+                db_helper.save_leads(rows, city)
             except Exception as e_save:
                 log.warning(f"Gagal melakukan autosave progress: {e_save}")
 
     # Simpan hasil akhir
-    Path("output").mkdir(exist_ok=True)
-    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    try:
+        db_helper.save_leads(rows, city)
+    except Exception as e:
+        log.error(f"Gagal menyimpan hasil akhir resolver: {e}")
 
     log.info("\n" + "=" * 50)
     log.info("PENCARIAN SELESAI")
     log.info("=" * 50)
     log.info(f"Total UMKM diproses : {len(rows)}")
     log.info(f"Berhasil di-resolve  : {resolved_count} akun")
-    log.info(f"File tersimpan di   : {OUTPUT_FILE}")
     log.info("=" * 50)
 
 if __name__ == "__main__":

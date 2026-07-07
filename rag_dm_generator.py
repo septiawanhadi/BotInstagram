@@ -465,23 +465,21 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
         print("  [MODE TEST - Tidak kirim DM sungguhan]")
     print("=" * 55)
 
-    # Load leads dari CSV (menggunakan absolute path)
-    output_dir = BASE_DIR / "output"
-    csv_files = sorted(glob.glob(str(output_dir / "umkm_leads_*.csv")), reverse=True)
-    if not csv_files:
-        print(f"[ERROR] Tidak ada CSV leads di folder {output_dir}. Jalankan scraper.py dahulu.")
+    # Load leads dari db_helper (Firebase atau fallback CSV lokal)
+    import db_helper
+    raw_leads = db_helper.get_leads()
+    if not raw_leads:
+        print("[ERROR] Tidak ada data leads di database atau folder output. Jalankan scraper dahulu.")
         return
 
     leads = []
-    with open(csv_files[0], "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                score = int(row.get("lead_score", 0) or 0)
-                if score >= min_score:
-                    leads.append(row)
-            except (ValueError, TypeError):
-                continue
+    for row in raw_leads:
+        try:
+            score = int(row.get("lead_score", row.get("score", 0)) or 0)
+            if score >= min_score:
+                leads.append(row)
+        except (ValueError, TypeError):
+            continue
 
     sent = load_sent_usernames()
     pending = [l for l in leads if l.get("username") not in sent]
@@ -569,16 +567,28 @@ def run(limit: int = 0, min_score: int = 60, test_mode: bool = False):
             print(f"  [ERROR] Gagal memproses @{uname}: {e}")
             log_result(uname, "failed")
 
-    # Simpan hasil draf ke CSV terpisah jika ada draf yang dibuat
+    # Simpan hasil draf ke db_helper jika ada draf yang dibuat
     if drafts_created:
-        draft_file = BASE_DIR / "output" / "rag_dm_drafts.csv"
-        file_exists = draft_file.exists()
-        with open(draft_file, "a", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=drafts_created[0].keys())
-            if not file_exists:
-                writer.writeheader()
-            writer.writerows(drafts_created)
-        print(f"\n[OK] Draf pesan berhasil disimpan ke: {draft_file}")
+        try:
+            import db_helper
+            city = to_process[0].get("city", "Ciwidey") if to_process else "Ciwidey"
+            # Load existing drafts
+            existing_drafts = db_helper.get_drafts()
+            
+            # Merge new drafts into existing drafts (prevent duplicates by username)
+            merged_drafts = {d.get("username"): d for d in existing_drafts if d.get("username")}
+            for new_d in drafts_created:
+                username = new_d.get("username")
+                if username:
+                    new_d.setdefault("city", city)
+                    new_d.setdefault("status_dm", "belum_terkirim")
+                    new_d.setdefault("status_email", "belum_terkirim")
+                    merged_drafts[username] = new_d
+                    
+            db_helper.save_drafts(list(merged_drafts.values()), city)
+            print(f"\n[OK] Draf pesan berhasil disimpan via db_helper.")
+        except Exception as e:
+            print(f"\n[WARNING] Gagal menyimpan draf via db_helper: {e}")
 
     print("\n" + "=" * 55)
     print("  SELESAI")

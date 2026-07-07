@@ -426,88 +426,51 @@ def run_stop():
 
 @app.route("/api/leads")
 def get_leads():
-    """Return merged leads data: raw leads CSV + draft texts + DM/email send statuses."""
-    # 1. Find the latest raw leads CSV
-    osm_file = get_latest_csv("umkm_leads_*.csv")
+    """Return merged leads data from db_helper (Firebase or local CSV)."""
+    import db_helper
+    
+    # 1. Load leads from db_helper
+    leads = db_helper.get_leads()
     leads_data = {}
-    if osm_file and osm_file.exists():
-        try:
-            with open(osm_file, "r", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    username = row.get("username", "")
-                    leads_data[username] = dict(row)
-                    leads_data[username]["pesan_dm_rag"] = ""
-                    leads_data[username]["pesan_email_rag"] = ""
-                    leads_data[username]["dm_status"] = "pending"
-                    leads_data[username]["email_status"] = "pending"
-        except Exception as e:
-            log.error(f"Gagal membaca leads CSV: {e}")
-
-    # 2. Overlay draft texts from drafts CSV
-    draft_file = Path("output/rag_dm_drafts_resolved.csv")
-    if not draft_file.exists():
-        draft_file = Path("output/rag_dm_drafts.csv")
-    if draft_file.exists():
-        try:
-            with open(draft_file, "r", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    username = row.get("username", "")
-                    if username in leads_data:
-                        leads_data[username]["pesan_dm_rag"] = row.get("pesan_dm_rag", "")
-                        leads_data[username]["pesan_email_rag"] = row.get("pesan_email_rag", "")
-                        # Also pick up instagram_url from drafts if not in leads
-                        if not leads_data[username].get("instagram_url"):
-                            leads_data[username]["instagram_url"] = row.get("instagram_url", "")
-                    else:
-                        # Lead only in drafts (e.g. after resolver ran)
-                        leads_data[username] = dict(row)
-                        leads_data[username].setdefault("dm_status", "pending")
-                        leads_data[username].setdefault("email_status", "pending")
-        except Exception as e:
-            log.error(f"Gagal membaca drafts CSV: {e}")
-
-    # 3. Cross-reference DM send log
-    dm_log = Path("output/dm_sent_log.csv")
-    if dm_log.exists():
-        try:
-            with open(dm_log, "r", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    username = row.get("username", "")
-                    status = row.get("status", "")
-                    if username in leads_data:
-                        if status == "sent":
-                            leads_data[username]["dm_status"] = "sent"
-                        elif status == "failed" and leads_data[username]["dm_status"] != "sent":
-                            leads_data[username]["dm_status"] = "failed"
-        except Exception as e:
-            log.error(f"Gagal membaca DM log: {e}")
-
-    # 4. Cross-reference email send log
-    email_log = Path("output/email_sent_log.csv")
-    if email_log.exists():
-        try:
-            with open(email_log, "r", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    email_addr = (row.get("email") or "").strip().lower()
-                    status = row.get("status", "")
-                    # Match by email address across all leads
-                    for username, lead in leads_data.items():
-                        if (lead.get("email") or "").strip().lower() == email_addr and email_addr:
-                            if status == "sent":
-                                leads_data[username]["email_status"] = "sent"
-                            elif status == "failed" and leads_data[username]["email_status"] != "sent":
-                                leads_data[username]["email_status"] = "failed"
-        except Exception as e:
-            log.error(f"Gagal membaca email log: {e}")
-
+    
+    for lead in leads:
+        username = lead.get("username", "")
+        if not username:
+            continue
+        leads_data[username] = dict(lead)
+        # Set default empty fields
+        leads_data[username].setdefault("pesan_dm_rag", "")
+        leads_data[username].setdefault("pesan_email_rag", "")
+        leads_data[username].setdefault("dm_status", "pending")
+        leads_data[username].setdefault("email_status", "pending")
+        
+    # 2. Overlay drafts from db_helper
+    drafts = db_helper.get_drafts()
+    for draft in drafts:
+        username = draft.get("username", "")
+        if not username:
+            continue
+        if username in leads_data:
+            leads_data[username]["pesan_dm_rag"] = draft.get("pesan_dm_rag", "")
+            leads_data[username]["pesan_email_rag"] = draft.get("pesan_email_rag", "")
+            if draft.get("status_dm"):
+                leads_data[username]["dm_status"] = draft.get("status_dm")
+            if draft.get("status_email"):
+                leads_data[username]["email_status"] = draft.get("status_email")
+            if not leads_data[username].get("instagram_url"):
+                leads_data[username]["instagram_url"] = draft.get("instagram_url", "")
+        else:
+            # Lead only in drafts
+            leads_data[username] = dict(draft)
+            leads_data[username].setdefault("dm_status", draft.get("status_dm", "pending"))
+            leads_data[username].setdefault("email_status", draft.get("status_email", "pending"))
+            
+    # Return dynamic file names for compatibility
+    use_fb = db_helper.use_firebase
     return jsonify({
         "status": "success",
-        "leads_file": osm_file.name if osm_file else None,
-        "draft_file": draft_file.name if draft_file.exists() else None,
+        "leads_file": "Firebase Cloud Firestore" if use_fb else "Lokal CSV",
+        "draft_file": "Firebase Cloud Firestore" if use_fb else "Lokal CSV",
         "leads": list(leads_data.values())
     })
 
@@ -585,27 +548,33 @@ def leads_send_email():
             server.sendmail(smtp_user, email_addr, msg.as_string())
             server.quit()
 
-        # Log the sent email
-        log_file = Path("output/email_sent_log.csv")
-        file_exists = log_file.exists()
-        with open(log_file, "a", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["timestamp", "username", "full_name", "email", "status", "error"])
-            writer.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), username, full_name, email_addr, "sent", ""])
+        # Log the sent email via db_helper
+        import db_helper
+        db_helper.save_campaign_log("email", email_addr, "sent", f"To: {full_name}")
+        # Cari data kota lead untuk penentuan ID Firestore
+        leads = db_helper.get_leads()
+        city = "Ciwidey"
+        for l in leads:
+            if l.get("username") == username:
+                city = l.get("city", "Ciwidey")
+                break
+        db_helper.update_draft_status(city, full_name, "email", "sent")
 
         return jsonify({"status": "sent", "message": f"Email berhasil dikirim ke {email_addr}"})
 
     except Exception as e:
-        # Log failed attempt
+        # Log failed attempt via db_helper
         try:
-            log_file = Path("output/email_sent_log.csv")
-            file_exists = log_file.exists()
-            with open(log_file, "a", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                if not file_exists:
-                    writer.writerow(["timestamp", "username", "full_name", "email", "status", "error"])
-                writer.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), username, full_name, email_addr, "failed", str(e)[:200]])
+            import db_helper
+            db_helper.save_campaign_log("email", email_addr, "failed", str(e)[:200])
+            # Cari data kota lead
+            leads = db_helper.get_leads()
+            city = "Ciwidey"
+            for l in leads:
+                if l.get("username") == username:
+                    city = l.get("city", "Ciwidey")
+                    break
+            db_helper.update_draft_status(city, full_name, "email", "failed")
         except Exception:
             pass
         return jsonify({"status": "error", "message": f"Gagal mengirim email: {e}"}), 500
@@ -671,17 +640,37 @@ def leads_send_dm():
         user_id = cl.user_id_from_username(username)
         cl.direct_send(message, [user_id])
 
+        # Cari data kota & nama bisnis lead
+        import db_helper
+        leads = db_helper.get_leads()
+        city = "Ciwidey"
+        business_name = username
+        for l in leads:
+            if l.get("username") == username:
+                city = l.get("city", "Ciwidey")
+                business_name = l.get("full_name", l.get("business_name", username))
+                break
+
         # Log direct result
         from dm_sender import log_dm_result
-        log_dm_result(username, "sent", message)
+        log_dm_result(username, "sent", message, city, business_name)
 
         return jsonify({"status": "sent", "message": f"DM berhasil dikirim ke @{username}"})
 
     except Exception as e:
         # Log failure
         try:
+            import db_helper
+            leads = db_helper.get_leads()
+            city = "Ciwidey"
+            business_name = username
+            for l in leads:
+                if l.get("username") == username:
+                    city = l.get("city", "Ciwidey")
+                    business_name = l.get("full_name", l.get("business_name", username))
+                    break
             from dm_sender import log_dm_result
-            log_dm_result(username, "failed", str(e))
+            log_dm_result(username, "failed", str(e), city, business_name)
         except Exception:
             pass
         return jsonify({"status": "error", "message": f"Gagal mengirim DM: {e}"}), 500
@@ -715,45 +704,44 @@ def leads_generate_draft():
     except Exception as e:
         return jsonify({"status": "error", "message": f"AI generator error: {e}"}), 500
 
-    # Save the generated draft to the drafts CSV
-    draft_file = Path("output/rag_dm_drafts_resolved.csv")
-    if not draft_file.exists():
-        draft_file = Path("output/rag_dm_drafts.csv")
-
-    if draft_file.exists():
-        try:
-            rows = []
-            fieldnames = []
-            found = False
-            with open(draft_file, "r", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                fieldnames = list(reader.fieldnames or [])
-                if "pesan_dm_rag" not in fieldnames:
-                    fieldnames.append("pesan_dm_rag")
-                for row in reader:
-                    if row.get("username") == username:
-                        row["pesan_dm_rag"] = draft_text
-                        found = True
-                    rows.append(row)
-            if not found:
-                # Add new row
-                new_row = {k: "" for k in fieldnames}
-                new_row.update(lead)
-                new_row["pesan_dm_rag"] = draft_text
-                rows.append(new_row)
-            with open(draft_file, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-                writer.writeheader()
-                writer.writerows(rows)
-        except Exception as e:
-            log.warning(f"Gagal menyimpan draft ke CSV: {e}")
+    # Save the generated draft to the db_helper
+    try:
+        import db_helper
+        drafts = db_helper.get_drafts()
+        found = False
+        city = lead.get("city", "Ciwidey") or "Ciwidey"
+        
+        # update draft in the list
+        for d in drafts:
+            if d.get("username") == username:
+                d["pesan_dm_rag"] = draft_text
+                found = True
+                break
+                
+        if not found:
+            new_draft = {
+                "business_name": lead.get("full_name", username),
+                "username": username,
+                "city": city,
+                "phone": lead.get("phone", ""),
+                "email": lead.get("email", ""),
+                "pesan_dm_rag": draft_text,
+                "pesan_email_rag": "",
+                "status_dm": "belum_terkirim",
+                "status_email": "belum_terkirim"
+            }
+            drafts.append(new_draft)
+            
+        db_helper.save_drafts(drafts, city)
+    except Exception as e:
+        log.warning(f"Gagal menyimpan draft via db_helper: {e}")
 
     return jsonify({"status": "success", "draft": draft_text, "username": username})
 
 
 @app.route("/api/leads/save", methods=["POST"])
 def leads_save_row():
-    """Save edits (username, DM draft, email draft) for a single lead in the drafts CSV."""
+    """Save edits (username, DM draft, email draft) for a single lead in the drafts db_helper."""
     data = request.json or {}
     old_username = data.get("old_username", "")
     new_username = data.get("new_username", old_username)
@@ -763,38 +751,31 @@ def leads_save_row():
     if not old_username:
         return jsonify({"status": "error", "message": "Parameter old_username wajib."}), 400
 
-    draft_file = Path("output/rag_dm_drafts_resolved.csv")
-    if not draft_file.exists():
-        draft_file = Path("output/rag_dm_drafts.csv")
-    if not draft_file.exists():
-        return jsonify({"status": "error", "message": "File draf tidak ditemukan."}), 404
-
     try:
-        rows = []
-        fieldnames = []
-        with open(draft_file, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            fieldnames = list(reader.fieldnames or [])
-            for col in ["pesan_dm_rag", "pesan_email_rag"]:
-                if col not in fieldnames:
-                    fieldnames.append(col)
-            for row in reader:
-                if row.get("username") == old_username:
-                    row["username"] = new_username
-                    if not new_username.startswith("osm_"):
-                        row["instagram_url"] = f"https://instagram.com/{new_username}"
-                    else:
-                        row["instagram_url"] = ""
-                    if pesan_dm is not None:
-                        row["pesan_dm_rag"] = pesan_dm
-                    if pesan_email is not None:
-                        row["pesan_email_rag"] = pesan_email
-                rows.append(row)
-        with open(draft_file, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(rows)
-        return jsonify({"status": "success", "message": "Draf berhasil disimpan."})
+        import db_helper
+        drafts = db_helper.get_drafts()
+        updated = False
+        city = "Ciwidey" # Default city fallback
+        
+        for d in drafts:
+            if d.get("username") == old_username:
+                d["username"] = new_username
+                if not new_username.startswith("osm_"):
+                    d["instagram_url"] = f"https://instagram.com/{new_username}"
+                else:
+                    d["instagram_url"] = ""
+                if pesan_dm is not None:
+                    d["pesan_dm_rag"] = pesan_dm
+                if pesan_email is not None:
+                    d["pesan_email_rag"] = pesan_email
+                city = d.get("city", "Ciwidey")
+                updated = True
+                
+        if updated:
+            db_helper.save_drafts(drafts, city)
+            return jsonify({"status": "success", "message": "Draf berhasil disimpan."})
+        else:
+            return jsonify({"status": "error", "message": "Lead tidak ditemukan."}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": f"Gagal menyimpan: {e}"}), 500
 
