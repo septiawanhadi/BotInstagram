@@ -4,3 +4,4 @@ openpyxl
 tqdm
 python-dotenv
 flask
+flask-cors

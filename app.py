@@ -18,6 +18,12 @@ from typing import Optional
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from flask import Flask, render_template, jsonify, request
+try:
+    from flask_cors import CORS
+except ImportError:
+    import subprocess
+    subprocess.run([sys.executable, "-m", "pip", "install", "flask-cors"], check=True)
+    from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -27,6 +33,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("web-app")
 
 app = Flask(__name__)
+CORS(app)
 
 # Status Eksekusi Global
 process_status = {
