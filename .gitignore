@@ -9,4 +9,5 @@ node_modules/
 .idea/
 *.pyc
 *.log
-.DS_Store
+firebase-credentials.json
+firebase-credentials.json.json

@@ -68,25 +68,37 @@ def save_leads(leads, city):
         try:
             batch = db_client.batch()
             for lead in leads:
-                doc_id = sanitize_doc_id(city, lead.get("full_name", "unnamed"))
+                doc_id = sanitize_doc_id(city, lead.get("full_name", lead.get("business_name", "unnamed")))
                 doc_ref = db_client.collection("leads").document(doc_id)
                 
-                # Konversi data mentah agar kompatibel dengan Firestore
-                lead_data = {
-                    "city": city,
-                    "business_name": lead.get("full_name", ""),
-                    "username": lead.get("username", ""),
-                    "phone": lead.get("phone", ""),
-                    "email": lead.get("email", ""),
-                    "address": lead.get("address", ""),
-                    "category": lead.get("category", ""),
-                    "instagram_url": lead.get("instagram_url", ""),
-                    "external_url": lead.get("external_url", ""),
-                    "score": int(lead.get("score", 0)),
-                    "latitude": float(lead.get("latitude", 0.0)) if lead.get("latitude") else 0.0,
-                    "longitude": float(lead.get("longitude", 0.0)) if lead.get("longitude") else 0.0,
-                    "created_at": datetime.now()
-                }
+                # Salin seluruh field dinamis agar tidak ada kolom yang terpotong
+                lead_data = {}
+                for k, v in lead.items():
+                    if k == "":
+                        continue
+                    if v is None:
+                        lead_data[k] = ""
+                    elif isinstance(v, (int, float)):
+                        lead_data[k] = v
+                    elif isinstance(v, str):
+                        if v.lower() == "true":
+                            lead_data[k] = True
+                        elif v.lower() == "false":
+                            lead_data[k] = False
+                        elif v.isdigit():
+                            lead_data[k] = int(v)
+                        else:
+                            try:
+                                lead_data[k] = float(v)
+                            except ValueError:
+                                lead_data[k] = v
+                    else:
+                        lead_data[k] = str(v)
+                
+                # Pastikan field wajib ada
+                lead_data["city"] = city
+                lead_data["created_at"] = datetime.now()
+                
                 batch.set(doc_ref, lead_data)
             batch.commit()
             log.info(f"💾 Berhasil menyimpan {len(leads)} leads ke Firebase Firestore (Collection: 'leads')")
@@ -131,21 +143,17 @@ def get_leads(city=None):
             leads = []
             for doc in docs:
                 data = doc.to_dict()
-                # Petakan kembali struktur agar kompatibel dengan script lama
-                lead = {
-                    "full_name": data.get("business_name", ""),
-                    "username": data.get("username", ""),
-                    "phone": data.get("phone", ""),
-                    "email": data.get("email", ""),
-                    "address": data.get("address", ""),
-                    "category": data.get("category", ""),
-                    "instagram_url": data.get("instagram_url", ""),
-                    "external_url": data.get("external_url", ""),
-                    "score": data.get("score", 0),
-                    "latitude": data.get("latitude", 0.0),
-                    "longitude": data.get("longitude", 0.0)
-                }
-                leads.append(lead)
+                # Hapus created_at agar tidak error saat Flask melakukan JSON serialization
+                if "created_at" in data:
+                    del data["created_at"]
+                
+                # Kompatibilitas field nama bisnis lama
+                if "business_name" in data and "full_name" not in data:
+                    data["full_name"] = data["business_name"]
+                elif "full_name" in data and "business_name" not in data:
+                    data["business_name"] = data["full_name"]
+                    
+                leads.append(data)
             return leads
         except Exception as e:
             log.error(f"⚠️ Gagal membaca dari Firebase, mencoba file lokal: {e}")
@@ -188,27 +196,34 @@ def save_drafts(drafts, city):
         try:
             batch = db_client.batch()
             for draft in drafts:
-                # Menggunakan sanitasi kota + nama bisnis sebagai ID agar unik
                 doc_id = sanitize_doc_id(city, draft.get("full_name", draft.get("business_name", "unnamed")))
                 doc_ref = db_client.collection("drafts").document(doc_id)
                 
-                draft_data = {
-                    "city": city,
-                    "business_name": draft.get("full_name", draft.get("business_name", "")),
-                    "username": draft.get("username", ""),
-                    "phone": draft.get("phone", ""),
-                    "email": draft.get("email", ""),
-                    "instagram_url": draft.get("instagram_url", ""),
-                    "external_url": draft.get("external_url", ""),
-                    "pesan_dm_rag": draft.get("pesan_dm_rag", ""),
-                    "pesan_email_rag": draft.get("pesan_email_rag", ""),
-                    "status_dm": draft.get("status_dm", "belum_terkirim"),
-                    "status_email": draft.get("status_email", "belum_terkirim"),
-                    "score": int(draft.get("score", 0)) if draft.get("score") else 0,
-                    "latitude": float(draft.get("latitude", 0.0)) if draft.get("latitude") else 0.0,
-                    "longitude": float(draft.get("longitude", 0.0)) if draft.get("longitude") else 0.0,
-                    "created_at": datetime.now()
-                }
+                draft_data = {}
+                for k, v in draft.items():
+                    if k == "":
+                        continue
+                    if v is None:
+                        draft_data[k] = ""
+                    elif isinstance(v, (int, float)):
+                        draft_data[k] = v
+                    elif isinstance(v, str):
+                        if v.lower() == "true":
+                            draft_data[k] = True
+                        elif v.lower() == "false":
+                            draft_data[k] = False
+                        elif v.isdigit():
+                            draft_data[k] = int(v)
+                        else:
+                            try:
+                                draft_data[k] = float(v)
+                            except ValueError:
+                                draft_data[k] = v
+                    else:
+                        draft_data[k] = str(v)
+                        
+                draft_data["city"] = city
+                draft_data["created_at"] = datetime.now()
                 batch.set(doc_ref, draft_data)
             batch.commit()
             log.info(f"💾 Berhasil menyimpan {len(drafts)} draf ke Firebase Firestore (Collection: 'drafts')")
@@ -251,23 +266,15 @@ def get_drafts(city=None):
             drafts = []
             for doc in docs:
                 data = doc.to_dict()
-                draft = {
-                    "full_name": data.get("business_name", ""),
-                    "business_name": data.get("business_name", ""),
-                    "username": data.get("username", ""),
-                    "phone": data.get("phone", ""),
-                    "email": data.get("email", ""),
-                    "instagram_url": data.get("instagram_url", ""),
-                    "external_url": data.get("external_url", ""),
-                    "pesan_dm_rag": data.get("pesan_dm_rag", ""),
-                    "pesan_email_rag": data.get("pesan_email_rag", ""),
-                    "status_dm": data.get("status_dm", "belum_terkirim"),
-                    "status_email": data.get("status_email", "belum_terkirim"),
-                    "score": data.get("score", 0),
-                    "latitude": data.get("latitude", 0.0),
-                    "longitude": data.get("longitude", 0.0)
-                }
-                drafts.append(draft)
+                if "created_at" in data:
+                    del data["created_at"]
+                
+                if "business_name" in data and "full_name" not in data:
+                    data["full_name"] = data["business_name"]
+                elif "full_name" in data and "business_name" not in data:
+                    data["business_name"] = data["full_name"]
+                    
+                drafts.append(data)
             return drafts
         except Exception as e:
             log.error(f"⚠️ Gagal membaca draf dari Firebase: {e}")
