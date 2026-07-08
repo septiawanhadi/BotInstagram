@@ -85,13 +85,19 @@ def save_leads(leads, city):
                             lead_data[k] = True
                         elif v.lower() == "false":
                             lead_data[k] = False
-                        elif v.isdigit():
-                            lead_data[k] = int(v)
-                        else:
+                        # Konversi tipe data numerik yang memang harusnya angka
+                        elif k in {"follower_count", "following_count", "media_count", "last_post_days_ago", "lead_score", "score"}:
+                            try:
+                                lead_data[k] = int(float(v))
+                            except ValueError:
+                                lead_data[k] = v
+                        elif k in {"latitude", "longitude"}:
                             try:
                                 lead_data[k] = float(v)
                             except ValueError:
                                 lead_data[k] = v
+                        else:
+                            lead_data[k] = v
                     else:
                         lead_data[k] = str(v)
                 
@@ -147,6 +153,13 @@ def get_leads(city=None):
                 if "created_at" in data:
                     del data["created_at"]
                 
+                # Paksa konversi tipe data teks krusial ke String agar JS frontend tidak error (.trim() dll)
+                for str_col in ["phone", "email", "username", "full_name", "business_name"]:
+                    if str_col in data and data[str_col] is not None:
+                        data[str_col] = str(data[str_col])
+                    else:
+                        data[str_col] = ""
+                        
                 # Kompatibilitas field nama bisnis lama
                 if "business_name" in data and "full_name" not in data:
                     data["full_name"] = data["business_name"]
@@ -212,13 +225,19 @@ def save_drafts(drafts, city):
                             draft_data[k] = True
                         elif v.lower() == "false":
                             draft_data[k] = False
-                        elif v.isdigit():
-                            draft_data[k] = int(v)
-                        else:
+                        # Konversi tipe data numerik yang memang harusnya angka
+                        elif k in {"follower_count", "following_count", "media_count", "last_post_days_ago", "lead_score", "score"}:
+                            try:
+                                draft_data[k] = int(float(v))
+                            except ValueError:
+                                draft_data[k] = v
+                        elif k in {"latitude", "longitude"}:
                             try:
                                 draft_data[k] = float(v)
                             except ValueError:
                                 draft_data[k] = v
+                        else:
+                            draft_data[k] = v
                     else:
                         draft_data[k] = str(v)
                         
@@ -269,6 +288,13 @@ def get_drafts(city=None):
                 if "created_at" in data:
                     del data["created_at"]
                 
+                # Paksa konversi tipe data teks krusial ke String agar JS frontend tidak error
+                for str_col in ["phone", "email", "username", "full_name", "business_name"]:
+                    if str_col in data and data[str_col] is not None:
+                        data[str_col] = str(data[str_col])
+                    else:
+                        data[str_col] = ""
+                        
                 if "business_name" in data and "full_name" not in data:
                     data["full_name"] = data["business_name"]
                 elif "full_name" in data and "business_name" not in data:
